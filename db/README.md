@@ -4,9 +4,9 @@ This folder contains the starter PostgreSQL files for the `DBMSQuizEvaluationPro
 
 ## Files
 
-- `schema.sql`: Creates the main tables for users, courses, quizzes, questions, attempts, answers, and results.
+- `schema.sql`: Creates the main tables for users, exams, questions, submissions, integrity logs, and cases.
 - `seed.sql`: Inserts demo data so the team can test the schema quickly.
-- `queries.sql`: Contains common SQL queries for browsing quiz data and results.
+- `queries.sql`: Contains common SQL queries for browsing exam, submission, and integrity data.
 
 ## Supabase Quick Start
 
@@ -20,3 +20,4 @@ This folder contains the starter PostgreSQL files for the `DBMSQuizEvaluationPro
 
 - Keep future schema changes in SQL files and commit them to Git.
 - Do not store real database passwords in the repository.
+- If you use Supabase Auth, prefer storing the auth user id in `auth_user_id` and avoid relying on `password_hash` in application code.

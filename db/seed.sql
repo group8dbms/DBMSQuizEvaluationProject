@@ -1,39 +1,45 @@
-insert into users (full_name, email, role) values
-  ('Project Admin', 'admin@group8dbms.local', 'admin'),
-  ('Faculty Demo', 'faculty@group8dbms.local', 'faculty'),
-  ('Student One', 'student1@group8dbms.local', 'student'),
-  ('Student Two', 'student2@group8dbms.local', 'student');
+insert into users (email, password_hash, role) values
+  ('admin@group8dbms.local', 'demo_hash_admin', 'admin'),
+  ('student1@group8dbms.local', 'demo_hash_student1', 'student'),
+  ('student2@group8dbms.local', 'demo_hash_student2', 'student'),
+  ('proctor1@group8dbms.local', 'demo_hash_proctor', 'proctor');
 
-insert into courses (course_name, course_code, created_by) values
-  ('Database Management Systems', 'DBMS101', 2);
+insert into exams (title, start_time, end_time, config_json, created_by) values
+  (
+    'DBMS Midterm Demo',
+    now() - interval '1 day',
+    now() + interval '1 day',
+    '{
+      "duration_minutes": 60,
+      "negative_marking": false,
+      "tab_switch_limit": 3,
+      "ip_tracking": true
+    }'::jsonb,
+    1
+  );
 
-insert into quizzes (course_id, title, description, total_marks, time_limit_minutes, created_by) values
-  (1, 'SQL Basics Quiz', 'Introductory quiz for SQL and relational model concepts.', 10, 20, 2);
+insert into questions (exam_id, text, type, correct_answer, marks) values
+  (1, 'What does DBMS stand for?', 'mcq', 'Database Management System', 2),
+  (1, 'A primary key must be unique for every row.', 'true_false', 'True', 2),
+  (1, 'Write the SQL command used to fetch data from a table.', 'short_answer', 'SELECT', 3);
 
-insert into questions (quiz_id, question_text, question_type, marks) values
-  (1, 'Which SQL statement is used to retrieve data from a table?', 'mcq', 2),
-  (1, 'What does DBMS stand for?', 'mcq', 2),
-  (1, 'A primary key must be unique for every row.', 'true_false', 2);
+insert into submissions (student_id, exam_id, answer_data, final_hash, status, submitted_at) values
+  (
+    2,
+    1,
+    '[
+      {"question_id": 1, "answer": "Database Management System"},
+      {"question_id": 2, "answer": "True"},
+      {"question_id": 3, "answer": "SELECT * FROM students;"}
+    ]'::jsonb,
+    'sample-final-hash-001',
+    'submitted',
+    now()
+  );
 
-insert into options (question_id, option_text, is_correct) values
-  (1, 'SELECT', true),
-  (1, 'INSERT', false),
-  (1, 'UPDATE', false),
-  (1, 'DELETE', false),
-  (2, 'Database Management System', true),
-  (2, 'Data Backup Management Solution', false),
-  (2, 'Digital Base Mapping Service', false),
-  (2, 'Dynamic Buffer Management Setup', false),
-  (3, 'True', true),
-  (3, 'False', false);
+insert into integrity_logs (submission_id, event_type, event_details) values
+  (1, 'tab_switch', '{"count": 1, "note": "Student switched tab once."}'::jsonb),
+  (1, 'ip_change', '{"old_ip": "10.0.0.5", "new_ip": "10.0.0.8"}'::jsonb);
 
-insert into attempts (quiz_id, student_id, submitted_at, status) values
-  (1, 3, now(), 'evaluated');
-
-insert into answers (attempt_id, question_id, selected_option_id, awarded_marks, is_correct) values
-  (1, 1, 1, 2, true),
-  (1, 2, 5, 2, true),
-  (1, 3, 9, 2, true);
-
-insert into results (attempt_id, total_score, remarks) values
-  (1, 6, 'Sample fully correct attempt for demo and testing.');
+insert into cases (submission_id, proctor_id, status, verdict) values
+  (1, 4, 'open', 'Pending manual review by proctor.');

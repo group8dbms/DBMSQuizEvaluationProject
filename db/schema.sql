@@ -1,68 +1,59 @@
 create table users (
-  user_id bigserial primary key,
-  full_name varchar(100) not null,
+  id bigserial primary key,
+  auth_user_id uuid unique,
   email varchar(120) unique not null,
-  role varchar(20) not null check (role in ('admin', 'faculty', 'student')),
+  password_hash text,
+  role varchar(20) not null check (role in ('admin', 'student', 'proctor', 'faculty')),
   created_at timestamp default now()
 );
 
-create table courses (
-  course_id bigserial primary key,
-  course_name varchar(100) not null,
-  course_code varchar(30) unique not null,
-  created_by bigint references users(user_id) on delete set null
-);
-
-create table quizzes (
-  quiz_id bigserial primary key,
-  course_id bigint references courses(course_id) on delete cascade,
+create table exams (
+  id bigserial primary key,
   title varchar(150) not null,
-  description text,
-  total_marks numeric(6,2) default 0,
-  time_limit_minutes integer,
-  created_by bigint references users(user_id) on delete set null,
-  created_at timestamp default now()
+  start_time timestamp not null,
+  end_time timestamp not null,
+  config_json jsonb default '{}'::jsonb,
+  created_by bigint references users(id) on delete set null,
+  created_at timestamp default now(),
+  check (end_time > start_time)
 );
 
 create table questions (
-  question_id bigserial primary key,
-  quiz_id bigint not null references quizzes(quiz_id) on delete cascade,
-  question_text text not null,
-  question_type varchar(20) not null check (question_type in ('mcq', 'short', 'true_false')),
-  marks numeric(6,2) not null default 1
+  id bigserial primary key,
+  exam_id bigint not null references exams(id) on delete cascade,
+  text text not null,
+  type varchar(30) not null check (type in ('mcq', 'true_false', 'short_answer', 'long_answer')),
+  correct_answer text,
+  marks numeric(6,2) not null default 1,
+  created_at timestamp default now()
 );
 
-create table options (
-  option_id bigserial primary key,
-  question_id bigint not null references questions(question_id) on delete cascade,
-  option_text text not null,
-  is_correct boolean default false
-);
-
-create table attempts (
-  attempt_id bigserial primary key,
-  quiz_id bigint not null references quizzes(quiz_id) on delete cascade,
-  student_id bigint not null references users(user_id) on delete cascade,
-  started_at timestamp default now(),
+create table submissions (
+  id bigserial primary key,
+  student_id bigint not null references users(id) on delete cascade,
+  exam_id bigint not null references exams(id) on delete cascade,
+  answer_data jsonb not null default '[]'::jsonb,
+  final_hash text,
+  status varchar(20) not null default 'draft' check (status in ('draft', 'submitted', 'under_review', 'evaluated')),
   submitted_at timestamp,
-  status varchar(20) not null default 'in_progress' check (status in ('in_progress', 'submitted', 'evaluated'))
+  created_at timestamp default now(),
+  unique (student_id, exam_id)
 );
 
-create table answers (
-  answer_id bigserial primary key,
-  attempt_id bigint not null references attempts(attempt_id) on delete cascade,
-  question_id bigint not null references questions(question_id) on delete cascade,
-  selected_option_id bigint references options(option_id) on delete set null,
-  answer_text text,
-  awarded_marks numeric(6,2) default 0,
-  is_correct boolean,
-  unique (attempt_id, question_id)
+create table integrity_logs (
+  id bigserial primary key,
+  submission_id bigint not null references submissions(id) on delete cascade,
+  event_type varchar(50) not null check (event_type in ('tab_switch', 'ip_change', 'browser_exit', 'copy_paste', 'multiple_faces', 'suspicious_activity')),
+  event_details jsonb default '{}'::jsonb,
+  timestamp timestamp not null default now()
 );
 
-create table results (
-  result_id bigserial primary key,
-  attempt_id bigint unique not null references attempts(attempt_id) on delete cascade,
-  total_score numeric(8,2) not null default 0,
-  evaluated_at timestamp default now(),
-  remarks text
+create table cases (
+  id bigserial primary key,
+  submission_id bigint not null references submissions(id) on delete cascade,
+  proctor_id bigint references users(id) on delete set null,
+  status varchar(20) not null default 'open' check (status in ('open', 'in_review', 'resolved', 'rejected')),
+  verdict text,
+  created_at timestamp default now(),
+  resolved_at timestamp
 );
