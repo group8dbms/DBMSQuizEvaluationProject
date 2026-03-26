@@ -40,14 +40,24 @@ async function submitSubmission(id, answerData) {
 async function getSubmissionById(id) {
   return supabase
     .from("submissions")
-    .select("*, users!submissions_student_id_fkey(email), exams(title)")
+    .select("*, users!submissions_student_id_fkey(email), exams(*)")
     .eq("id", id)
     .single();
+}
+
+async function getSubmissionByStudentAndExam(studentId, examId) {
+  return supabase
+    .from("submissions")
+    .select("*")
+    .eq("student_id", studentId)
+    .eq("exam_id", examId)
+    .maybeSingle();
 }
 
 module.exports = {
   startSubmission,
   saveSubmissionAnswers,
   submitSubmission,
-  getSubmissionById
+  getSubmissionById,
+  getSubmissionByStudentAndExam
 };

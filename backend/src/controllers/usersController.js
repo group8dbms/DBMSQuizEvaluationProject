@@ -1,5 +1,5 @@
 const { listUsers, createUser } = require("../services/usersService");
-const { handleServerError } = require("../utils/http");
+const { handleServerError, badRequest } = require("../utils/http");
 
 async function getUsers(_req, res) {
   try {
@@ -17,6 +17,10 @@ async function getUsers(_req, res) {
 async function postUser(req, res) {
   try {
     const { email, password_hash, role, auth_user_id } = req.body;
+    if (!email || !role) {
+      return badRequest(res, "email and role are required.");
+    }
+
     const { data, error } = await createUser({
       email,
       password_hash,

@@ -23,4 +23,18 @@ async function createQuestion(payload) {
   return supabase.from("questions").insert(payload).select().single();
 }
 
-module.exports = { listExams, getExamById, createExam, createQuestion };
+function isExamActive(exam) {
+  const now = new Date();
+  const startTime = new Date(exam.start_time);
+  const endTime = new Date(exam.end_time);
+
+  return now >= startTime && now <= endTime;
+}
+
+module.exports = {
+  listExams,
+  getExamById,
+  createExam,
+  createQuestion,
+  isExamActive
+};

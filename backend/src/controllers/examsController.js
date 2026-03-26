@@ -4,7 +4,7 @@ const {
   createExam,
   createQuestion
 } = require("../services/examsService");
-const { handleServerError } = require("../utils/http");
+const { handleServerError, badRequest, notFound } = require("../utils/http");
 
 async function getExams(_req, res) {
   try {
@@ -35,6 +35,10 @@ async function getExam(req, res) {
 async function postExam(req, res) {
   try {
     const { title, start_time, end_time, config_json } = req.body;
+    if (!title || !start_time || !end_time) {
+      return badRequest(res, "title, start_time, and end_time are required.");
+    }
+
     const { data, error } = await createExam({
       title,
       start_time,
@@ -56,6 +60,15 @@ async function postExam(req, res) {
 async function postQuestion(req, res) {
   try {
     const { text, type, correct_answer, marks } = req.body;
+    if (!text || !type) {
+      return badRequest(res, "text and type are required.");
+    }
+
+    const examResult = await getExamById(req.params.id);
+    if (examResult.error || !examResult.data) {
+      return notFound(res, "Exam not found.");
+    }
+
     const { data, error } = await createQuestion({
       exam_id: Number(req.params.id),
       text,

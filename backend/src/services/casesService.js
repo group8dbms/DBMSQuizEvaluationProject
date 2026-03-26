@@ -15,4 +15,12 @@ async function updateCase(id, payload) {
   return supabase.from("cases").update(payload).eq("id", id).select().single();
 }
 
-module.exports = { listCases, createCase, updateCase };
+async function findCaseBySubmissionId(submissionId) {
+  return supabase
+    .from("cases")
+    .select("*")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+}
+
+module.exports = { listCases, createCase, updateCase, findCaseBySubmissionId };

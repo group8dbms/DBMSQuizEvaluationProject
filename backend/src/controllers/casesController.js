@@ -1,5 +1,11 @@
-const { listCases, createCase, updateCase } = require("../services/casesService");
-const { handleServerError } = require("../utils/http");
+const {
+  listCases,
+  createCase,
+  updateCase,
+  findCaseBySubmissionId
+} = require("../services/casesService");
+const { getSubmissionById } = require("../services/submissionsService");
+const { handleServerError, badRequest, notFound } = require("../utils/http");
 
 async function getCases(_req, res) {
   try {
@@ -17,6 +23,24 @@ async function getCases(_req, res) {
 async function postCase(req, res) {
   try {
     const { submission_id, verdict } = req.body;
+    if (!submission_id) {
+      return badRequest(res, "submission_id is required.");
+    }
+
+    const submissionResult = await getSubmissionById(submission_id);
+    if (submissionResult.error || !submissionResult.data) {
+      return notFound(res, "Submission not found.");
+    }
+
+    const existingCaseResult = await findCaseBySubmissionId(submission_id);
+    if (existingCaseResult.error) {
+      throw existingCaseResult.error;
+    }
+
+    if (existingCaseResult.data) {
+      return res.json(existingCaseResult.data);
+    }
+
     const { data, error } = await createCase({
       submission_id,
       verdict,
@@ -36,6 +60,10 @@ async function postCase(req, res) {
 
 async function patchCase(req, res) {
   try {
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return badRequest(res, "At least one field is required to update a case.");
+    }
+
     const updatePayload = {
       ...req.body,
       proctor_id: req.user.id
