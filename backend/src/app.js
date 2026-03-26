@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const authRoutes = require("./routes/authRoutes");
 const healthRoutes = require("./routes/healthRoutes");
 const usersRoutes = require("./routes/usersRoutes");
 const examsRoutes = require("./routes/examsRoutes");
@@ -14,6 +15,7 @@ app.use(cors());
 app.use(express.json());
 app.use(attachUser);
 
+app.use("/api/auth", authRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/exams", examsRoutes);
@@ -26,6 +28,7 @@ app.get("/", (_req, res) => {
     name: "DBMSQuizEvaluationProject Backend",
     version: "1.0.0",
     endpoints: [
+      "/api/auth",
       "/api/health",
       "/api/users",
       "/api/exams",

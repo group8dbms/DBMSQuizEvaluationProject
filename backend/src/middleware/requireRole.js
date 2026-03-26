@@ -1,6 +1,20 @@
 function requireRole(...allowedRoles) {
   return (req, res, next) => {
-    if (!req.user || !allowedRoles.includes(req.user.role)) {
+    if (!req.user || !req.user.isAuthenticated) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "A valid Bearer token is required."
+      });
+    }
+
+    if (!req.user.id) {
+      return res.status(403).json({
+        error: "ProfileMissing",
+        message: "Authenticated user does not have an application profile in the users table."
+      });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({
         error: "Forbidden",
         message: `Allowed roles: ${allowedRoles.join(", ")}`

@@ -1,5 +1,9 @@
 const { createClient } = require("@supabase/supabase-js");
-const { supabaseUrl, supabaseServiceRoleKey } = require("../config/env");
+const {
+  supabaseUrl,
+  supabaseAnonKey,
+  supabaseServiceRoleKey
+} = require("../config/env");
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: {
@@ -8,4 +12,11 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
   }
 });
 
-module.exports = { supabase };
+const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
+module.exports = { supabase, authClient };
