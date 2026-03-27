@@ -6,6 +6,7 @@ Desktop.ini
 .idea/
 node_modules/
 .chrome-headless/
+dist/
 
 .env
 .env.local
