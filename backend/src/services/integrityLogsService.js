@@ -12,4 +12,12 @@ async function listIntegrityLogsBySubmission(submissionId) {
     .order("timestamp", { ascending: false });
 }
 
-module.exports = { createIntegrityLog, listIntegrityLogsBySubmission };
+async function listRecentIntegrityFlags() {
+  return supabase
+    .from("integrity_logs")
+    .select("*, submissions!inner(id, status, final_hash, student_id, exam_id, users!submissions_student_id_fkey(email), exams(id, title))")
+    .order("timestamp", { ascending: false })
+    .limit(50);
+}
+
+module.exports = { createIntegrityLog, listIntegrityLogsBySubmission, listRecentIntegrityFlags };

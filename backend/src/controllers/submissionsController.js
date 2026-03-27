@@ -3,9 +3,13 @@ const {
   saveSubmissionAnswers,
   submitSubmission,
   getSubmissionById,
-  getSubmissionByStudentAndExam
+  getSubmissionByStudentAndExam,
+  listSubmissions,
+  listSubmissionsByStudent,
+  verifySubmissionHash
 } = require("../services/submissionsService");
 const { getExamById, isExamActive, findExamAssignment } = require("../services/examsService");
+const { recordAuditLog } = require("../services/auditLogsService");
 const {
   handleServerError,
   badRequest,
@@ -58,6 +62,16 @@ async function postSubmissionStart(req, res) {
       throw error;
     }
 
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "submission_started",
+      entity_type: "submission",
+      entity_id: data.id,
+      metadata: {
+        exam_id: Number(exam_id)
+      }
+    });
+
     return res.status(201).json(data);
   } catch (error) {
     return handleServerError(res, error, "Unable to start submission.");
@@ -89,6 +103,16 @@ async function postSubmissionSave(req, res) {
       throw error;
     }
 
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "submission_saved",
+      entity_type: "submission",
+      entity_id: data.id,
+      metadata: {
+        answers_count: Array.isArray(answer_data) ? answer_data.length : 0
+      }
+    });
+
     return res.json(data);
   } catch (error) {
     return handleServerError(res, error, "Unable to save submission.");
@@ -115,6 +139,16 @@ async function postSubmissionSubmit(req, res) {
     if (error) {
       throw error;
     }
+
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "submission_submitted",
+      entity_type: "submission",
+      entity_id: data.id,
+      metadata: {
+        final_hash: data.final_hash
+      }
+    });
 
     return res.json(data);
   } catch (error) {
@@ -143,9 +177,51 @@ async function getSubmission(req, res) {
   }
 }
 
+async function getSubmissions(req, res) {
+  try {
+    const result = req.user.role === "student"
+      ? await listSubmissionsByStudent(req.user.id)
+      : await listSubmissions();
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    return res.json(result.data || []);
+  } catch (error) {
+    return handleServerError(res, error, "Unable to fetch submissions.");
+  }
+}
+
+async function getSubmissionHashStatus(req, res) {
+  try {
+    const { data, error } = await getSubmissionById(req.params.id);
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return notFound(res, "Submission not found.");
+    }
+
+    if (req.user.role === "student" && data.student_id !== req.user.id) {
+      return forbidden(res, "You can only verify your own submission.");
+    }
+
+    return res.json({
+      submission_id: data.id,
+      ...verifySubmissionHash(data)
+    });
+  } catch (error) {
+    return handleServerError(res, error, "Unable to verify submission hash.");
+  }
+}
+
 module.exports = {
   postSubmissionStart,
   postSubmissionSave,
   postSubmissionSubmit,
-  getSubmission
+  getSubmission,
+  getSubmissions,
+  getSubmissionHashStatus
 };

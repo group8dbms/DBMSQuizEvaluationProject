@@ -23,4 +23,12 @@ async function findCaseBySubmissionId(submissionId) {
     .maybeSingle();
 }
 
-module.exports = { listCases, createCase, updateCase, findCaseBySubmissionId };
+async function getCaseById(id) {
+  return supabase
+    .from("cases")
+    .select("*, submissions(*), users!cases_proctor_id_fkey(email)")
+    .eq("id", id)
+    .single();
+}
+
+module.exports = { listCases, createCase, updateCase, findCaseBySubmissionId, getCaseById };

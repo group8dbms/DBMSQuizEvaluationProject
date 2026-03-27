@@ -4,6 +4,14 @@ async function listUsers() {
   return supabase.from("users").select("*").order("id", { ascending: true });
 }
 
+async function listUsersByEmails(emails) {
+  return supabase
+    .from("users")
+    .select("*")
+    .in("email", emails)
+    .order("email", { ascending: true });
+}
+
 async function findUserByAuthUserId(authUserId) {
   return supabase
     .from("users")
@@ -34,6 +42,7 @@ async function upsertUserProfile(payload) {
 
 module.exports = {
   listUsers,
+  listUsersByEmails,
   findUserByAuthUserId,
   findUserByEmail,
   createUser,

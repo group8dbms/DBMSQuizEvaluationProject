@@ -5,10 +5,13 @@ const {
   createExam,
   createQuestion,
   createExamAssignment,
+  createExamAssignments,
   listExamAssignments,
   findExamAssignment
 } = require("../services/examsService");
+const { listUsersByEmails } = require("../services/usersService");
 const { handleServerError, badRequest, notFound } = require("../utils/http");
+const { recordAuditLog } = require("../services/auditLogsService");
 
 async function getExams(req, res) {
   try {
@@ -78,6 +81,16 @@ async function postExam(req, res) {
       throw error;
     }
 
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "exam_created",
+      entity_type: "exam",
+      entity_id: data.id,
+      metadata: {
+        title
+      }
+    });
+
     return res.status(201).json(data);
   } catch (error) {
     return handleServerError(res, error, "Unable to create exam.");
@@ -108,6 +121,17 @@ async function postQuestion(req, res) {
       throw error;
     }
 
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "question_created",
+      entity_type: "question",
+      entity_id: data.id,
+      metadata: {
+        exam_id: Number(req.params.id),
+        type
+      }
+    });
+
     return res.status(201).json(data);
   } catch (error) {
     return handleServerError(res, error, "Unable to create question.");
@@ -116,19 +140,118 @@ async function postQuestion(req, res) {
 
 async function postExamAssignment(req, res) {
   try {
-    const { student_id } = req.body;
-    if (!student_id) {
-      return badRequest(res, "student_id is required.");
-    }
-
     const examResult = await getExamById(req.params.id);
     if (examResult.error || !examResult.data) {
       return notFound(res, "Exam not found.");
     }
 
+    const {
+      student_id,
+      student_ids,
+      emails
+    } = req.body;
+
+    let normalizedStudentIds = [];
+
+    if (Array.isArray(student_ids) && student_ids.length) {
+      normalizedStudentIds = student_ids.map((value) => Number(value)).filter(Number.isFinite);
+    } else if (student_id) {
+      normalizedStudentIds = [Number(student_id)].filter(Number.isFinite);
+    } else if (Array.isArray(emails) && emails.length) {
+      const normalizedEmails = emails
+        .map((value) => String(value).trim().toLowerCase())
+        .filter(Boolean);
+
+      if (!normalizedEmails.length) {
+        return badRequest(res, "emails must contain at least one valid email.");
+      }
+
+      const usersResult = await listUsersByEmails(normalizedEmails);
+      if (usersResult.error) {
+        throw usersResult.error;
+      }
+
+      normalizedStudentIds = (usersResult.data || [])
+        .filter((user) => user.role === "student")
+        .map((user) => user.id);
+
+      const matchedEmails = new Set((usersResult.data || []).map((user) => user.email.toLowerCase()));
+      const unmatchedEmails = normalizedEmails.filter((email) => !matchedEmails.has(email));
+
+      if (!normalizedStudentIds.length) {
+        return badRequest(res, "No matching student accounts were found for the provided emails.");
+      }
+
+      const payloads = [...new Set(normalizedStudentIds)].map((id) => ({
+        exam_id: Number(req.params.id),
+        student_id: id,
+        assigned_by: req.user.id
+      }));
+
+      const { data, error } = await createExamAssignments(payloads);
+
+      if (error) {
+        if (error.code === "23505") {
+          return badRequest(res, "One or more selected students are already assigned to the exam.");
+        }
+        throw error;
+      }
+
+      await recordAuditLog({
+        actor_id: req.user.id,
+        action_type: "exam_assigned",
+        entity_type: "exam",
+        entity_id: Number(req.params.id),
+        metadata: {
+          student_ids: payloads.map((item) => item.student_id)
+        }
+      });
+
+      return res.status(201).json({
+        created: data || [],
+        unmatched_emails: unmatchedEmails
+      });
+    }
+
+    if (!normalizedStudentIds.length) {
+      return badRequest(res, "student_id, student_ids, or emails is required.");
+    }
+
+    if (normalizedStudentIds.length > 1) {
+      const payloads = [...new Set(normalizedStudentIds)].map((id) => ({
+        exam_id: Number(req.params.id),
+        student_id: id,
+        assigned_by: req.user.id
+      }));
+
+      const { data, error } = await createExamAssignments(payloads);
+
+    if (error) {
+      if (error.code === "23505") {
+        return badRequest(res, "One or more selected students are already assigned to the exam.");
+      }
+      throw error;
+    }
+
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "exam_assigned",
+      entity_type: "exam",
+      entity_id: Number(req.params.id),
+      metadata: {
+        student_ids: payloads.map((item) => item.student_id)
+      }
+    });
+
+    return res.status(201).json({
+      created: data || [],
+        unmatched_emails: []
+      });
+    }
+
     const { data, error } = await createExamAssignment({
       exam_id: Number(req.params.id),
-      student_id: Number(student_id),
+      student_id: normalizedStudentIds[0],
       assigned_by: req.user.id
     });
 
@@ -139,7 +262,20 @@ async function postExamAssignment(req, res) {
       throw error;
     }
 
-    return res.status(201).json(data);
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "exam_assigned",
+      entity_type: "exam",
+      entity_id: Number(req.params.id),
+      metadata: {
+        student_ids: [normalizedStudentIds[0]]
+      }
+    });
+
+    return res.status(201).json({
+      created: [data],
+      unmatched_emails: []
+    });
   } catch (error) {
     return handleServerError(res, error, "Unable to assign exam to student.");
   }

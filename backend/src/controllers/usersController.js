@@ -1,14 +1,26 @@
-const { listUsers, createUser } = require("../services/usersService");
+const { listUsers, listUsersByEmails, createUser } = require("../services/usersService");
 const { handleServerError, badRequest } = require("../utils/http");
 
-async function getUsers(_req, res) {
+async function getUsers(req, res) {
   try {
-    const { data, error } = await listUsers();
+    const emailQuery = typeof req.query.emails === "string" ? req.query.emails : "";
+    const emails = emailQuery
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+
+    const result = emails.length ? await listUsersByEmails(emails) : await listUsers();
+    const { data, error } = result;
     if (error) {
       throw error;
     }
 
-    return res.json(data);
+    const roleQuery = typeof req.query.role === "string" ? req.query.role.toLowerCase() : "";
+    const filtered = roleQuery
+      ? (data || []).filter((item) => String(item.role).toLowerCase() === roleQuery)
+      : (data || []);
+
+    return res.json(filtered);
   } catch (error) {
     return handleServerError(res, error, "Unable to fetch users.");
   }

@@ -2,9 +2,12 @@ const {
   listCases,
   createCase,
   updateCase,
-  findCaseBySubmissionId
+  findCaseBySubmissionId,
+  getCaseById
 } = require("../services/casesService");
 const { getSubmissionById } = require("../services/submissionsService");
+const { listCaseEvidence, createCaseEvidence } = require("../services/caseEvidenceService");
+const { recordAuditLog } = require("../services/auditLogsService");
 const { handleServerError, badRequest, notFound } = require("../utils/http");
 
 async function getCases(_req, res) {
@@ -52,6 +55,16 @@ async function postCase(req, res) {
       throw error;
     }
 
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "case_opened",
+      entity_type: "case",
+      entity_id: data.id,
+      metadata: {
+        submission_id: Number(submission_id)
+      }
+    });
+
     return res.status(201).json(data);
   } catch (error) {
     return handleServerError(res, error, "Unable to create case.");
@@ -78,10 +91,80 @@ async function patchCase(req, res) {
       throw error;
     }
 
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "case_updated",
+      entity_type: "case",
+      entity_id: data.id,
+      metadata: {
+        status: data.status,
+        verdict: data.verdict
+      }
+    });
+
     return res.json(data);
   } catch (error) {
     return handleServerError(res, error, "Unable to update case.");
   }
 }
 
-module.exports = { getCases, postCase, patchCase };
+async function getCaseEvidenceList(req, res) {
+  try {
+    const caseResult = await getCaseById(req.params.id);
+    if (caseResult.error || !caseResult.data) {
+      return notFound(res, "Case not found.");
+    }
+
+    const { data, error } = await listCaseEvidence(req.params.id);
+    if (error) {
+      throw error;
+    }
+
+    return res.json(data || []);
+  } catch (error) {
+    return handleServerError(res, error, "Unable to fetch case evidence.");
+  }
+}
+
+async function postCaseEvidence(req, res) {
+  try {
+    const { source_type, notes, payload = {} } = req.body;
+    if (!source_type) {
+      return badRequest(res, "source_type is required.");
+    }
+
+    const caseResult = await getCaseById(req.params.id);
+    if (caseResult.error || !caseResult.data) {
+      return notFound(res, "Case not found.");
+    }
+
+    const { data, error } = await createCaseEvidence({
+      case_id: Number(req.params.id),
+      source_type,
+      notes,
+      payload,
+      created_by: req.user.id
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    await recordAuditLog({
+      actor_id: req.user.id,
+      action_type: "case_evidence_added",
+      entity_type: "case",
+      entity_id: Number(req.params.id),
+      metadata: {
+        evidence_id: data.id,
+        source_type
+      }
+    });
+
+    return res.status(201).json(data);
+  } catch (error) {
+    return handleServerError(res, error, "Unable to add case evidence.");
+  }
+}
+
+module.exports = { getCases, postCase, patchCase, getCaseEvidenceList, postCaseEvidence };

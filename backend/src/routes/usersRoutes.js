@@ -4,7 +4,7 @@ const { requireRole } = require("../middleware/requireRole");
 
 const router = express.Router();
 
-router.get("/", requireRole("admin", "faculty", "proctor"), getUsers);
+router.get("/", requireRole("admin", "faculty", "proctor", "evaluator", "auditor"), getUsers);
 router.post("/", requireRole("admin"), postUser);
 
 module.exports = router;

@@ -7,6 +7,8 @@ const examsRoutes = require("./routes/examsRoutes");
 const submissionsRoutes = require("./routes/submissionsRoutes");
 const integrityLogsRoutes = require("./routes/integrityLogsRoutes");
 const casesRoutes = require("./routes/casesRoutes");
+const resultsRoutes = require("./routes/resultsRoutes");
+const auditLogsRoutes = require("./routes/auditLogsRoutes");
 const { attachUser } = require("./middleware/attachUser");
 
 const app = express();
@@ -22,6 +24,8 @@ app.use("/api/exams", examsRoutes);
 app.use("/api/submissions", submissionsRoutes);
 app.use("/api/integrity-logs", integrityLogsRoutes);
 app.use("/api/cases", casesRoutes);
+app.use("/api/results", resultsRoutes);
+app.use("/api/audit-logs", auditLogsRoutes);
 
 app.get("/", (_req, res) => {
   res.json({
@@ -34,7 +38,9 @@ app.get("/", (_req, res) => {
       "/api/exams",
       "/api/submissions",
       "/api/integrity-logs",
-      "/api/cases"
+      "/api/cases",
+      "/api/results",
+      "/api/audit-logs"
     ]
   });
 });

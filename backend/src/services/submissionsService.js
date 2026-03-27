@@ -54,10 +54,47 @@ async function getSubmissionByStudentAndExam(studentId, examId) {
     .maybeSingle();
 }
 
+async function listSubmissions() {
+  return supabase
+    .from("submissions")
+    .select("*, users!submissions_student_id_fkey(email, role), exams(id, title, start_time, end_time)")
+    .order("id", { ascending: false });
+}
+
+async function listSubmissionsByStudent(studentId) {
+  return supabase
+    .from("submissions")
+    .select("*, users!submissions_student_id_fkey(email, role), exams(id, title, start_time, end_time)")
+    .eq("student_id", studentId)
+    .order("id", { ascending: false });
+}
+
+async function updateSubmissionStatus(id, status) {
+  return supabase
+    .from("submissions")
+    .update({ status })
+    .eq("id", id)
+    .select()
+    .single();
+}
+
+function verifySubmissionHash(submission) {
+  const expectedHash = createFinalHash(submission.answer_data || []);
+  return {
+    valid: submission.final_hash === expectedHash,
+    expectedHash,
+    storedHash: submission.final_hash
+  };
+}
+
 module.exports = {
   startSubmission,
   saveSubmissionAnswers,
   submitSubmission,
   getSubmissionById,
-  getSubmissionByStudentAndExam
+  getSubmissionByStudentAndExam,
+  listSubmissions,
+  listSubmissionsByStudent,
+  updateSubmissionStatus,
+  verifySubmissionHash
 };

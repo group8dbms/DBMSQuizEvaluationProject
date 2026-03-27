@@ -35,6 +35,10 @@ async function createExamAssignment(payload) {
   return supabase.from("exam_assignments").insert(payload).select().single();
 }
 
+async function createExamAssignments(payloads) {
+  return supabase.from("exam_assignments").insert(payloads).select();
+}
+
 async function listExamAssignments(examId) {
   return supabase
     .from("exam_assignments")
@@ -67,6 +71,7 @@ module.exports = {
   createExam,
   createQuestion,
   createExamAssignment,
+  createExamAssignments,
   listExamAssignments,
   findExamAssignment,
   isExamActive
