@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DBMS Quiz Evaluation Project Backend Guide</title>
+  <style>
+    :root {
+      --ink: #1f2937;
+      --muted: #4b5563;
+      --line: #d1d5db;
+      --panel: #f8fafc;
+      --accent: #0f766e;
+    }
+    body {
+      margin: 32px auto;
+      max-width: 980px;
+      padding: 0 24px 48px;
+      color: var(--ink);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.45;
+    }
+    h1, h2, h3 {
+      color: #111827;
+      margin-top: 24px;
+      margin-bottom: 10px;
+    }
+    h1 {
+      font-size: 32px;
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 10px;
+    }
+    h2 {
+      font-size: 22px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 6px;
+    }
+    h3 {
+      font-size: 18px;
+    }
+    p, li {
+      font-size: 14px;
+    }
+    ul {
+      margin-top: 8px;
+      margin-bottom: 12px;
+    }
+    code {
+      background: #eef2ff;
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-family: Consolas, monospace;
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 18px;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      padding: 8px 10px;
+    }
+    th {
+      background: #ecfeff;
+    }
+    .diagram {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      padding: 12px 14px;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      margin: 12px 0 18px;
+    }
+    .subtle {
+      color: var(--muted);
+    }
+    .page-break {
+      page-break-before: always;
+    }
+  </style>
+</head>
+<body>
+  <h1>DBMS Quiz Evaluation Project Backend Guide</h1>
+  <p class="subtle">Prepared from the current backend implementation in the repository. This guide lists the modules, the APIs each module exposes, the responsibilities of each module, and the request flow diagrams.</p>
+
+  <h2>Module Overview Table</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Module</th>
+        <th>Main Files</th>
+        <th>APIs</th>
+        <th>Main Responsibility</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Auth</td>
+        <td><code>routes/authRoutes.js</code><br><code>controllers/authController.js</code><br><code>services/authService.js</code></td>
+        <td><code>POST /api/auth/signup</code><br><code>POST /api/auth/login</code><br><code>GET /api/auth/me</code></td>
+        <td>Signup, login, current-user lookup, and mapping Supabase auth users to the app <code>users</code> table.</td>
+      </tr>
+      <tr>
+        <td>Users</td>
+        <td><code>routes/usersRoutes.js</code><br><code>controllers/usersController.js</code><br><code>services/usersService.js</code></td>
+        <td><code>GET /api/users</code><br><code>POST /api/users</code></td>
+        <td>Manage app user profiles and roles stored in the <code>users</code> table.</td>
+      </tr>
+      <tr>
+        <td>Exams</td>
+        <td><code>routes/examsRoutes.js</code><br><code>controllers/examsController.js</code><br><code>services/examsService.js</code></td>
+        <td><code>GET /api/exams</code><br><code>GET /api/exams/:id</code><br><code>POST /api/exams</code><br><code>POST /api/exams/:id/questions</code></td>
+        <td>Create exams, add questions, fetch exam data, and check exam active windows.</td>
+      </tr>
+      <tr>
+        <td>Submissions</td>
+        <td><code>routes/submissionsRoutes.js</code><br><code>controllers/submissionsController.js</code><br><code>services/submissionsService.js</code></td>
+        <td><code>POST /api/submissions/start</code><br><code>POST /api/submissions/:id/save</code><br><code>POST /api/submissions/:id/submit</code><br><code>GET /api/submissions/:id</code></td>
+        <td>Handle student draft/final submissions, ownership checks, active-exam checks, and final hash generation.</td>
+      </tr>
+      <tr>
+        <td>Integrity Logs</td>
+        <td><code>routes/integrityLogsRoutes.js</code><br><code>controllers/integrityLogsController.js</code><br><code>services/integrityLogsService.js</code></td>
+        <td><code>POST /api/integrity-logs</code><br><code>GET /api/submissions/:submissionId/integrity-logs</code></td>
+        <td>Record suspicious events and allow authorized review of integrity history.</td>
+      </tr>
+      <tr>
+        <td>Cases</td>
+        <td><code>routes/casesRoutes.js</code><br><code>controllers/casesController.js</code><br><code>services/casesService.js</code></td>
+        <td><code>GET /api/cases</code><br><code>POST /api/cases</code><br><code>PATCH /api/cases/:id</code></td>
+        <td>Open, list, and resolve review cases for suspicious submissions.</td>
+      </tr>
+      <tr>
+        <td>Middleware</td>
+        <td><code>middleware/attachUser.js</code><br><code>middleware/requireAuth.js</code><br><code>middleware/requireRole.js</code></td>
+        <td>Used by protected APIs</td>
+        <td>Authenticate requests, load <code>req.user</code>, and enforce authorization.</td>
+      </tr>
+      <tr>
+        <td>Config & DB Client</td>
+        <td><code>config/env.js</code><br><code>db/supabase.js</code></td>
+        <td>Used internally</td>
+        <td>Load environment variables and create reusable Supabase clients.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Overall Backend Request Flow</h2>
+  <div class="diagram">Client / Frontend / Postman
+        |
+        v
+      app.js
+        |
+        v
+   attachUser middleware
+        |
+        v
+  Route match (auth/users/exams/...)
+        |
+        v
+ requireAuth / requireRole
+        |
+        v
+    Controller layer
+        |
+        v
+     Service layer
+        |
+        v
+ Supabase Auth / Database
+        |
+        v
+    JSON response</div>
+
+  <div class="page-break"></div>
+  <h2>1. Auth Module</h2>
+  <p><strong>Files:</strong> <code>routes/authRoutes.js</code>, <code>controllers/authController.js</code>, <code>services/authService.js</code></p>
+  <p><strong>APIs:</strong></p>
+  <ul>
+    <li><code>POST /api/auth/signup</code></li>
+    <li><code>POST /api/auth/login</code></li>
+    <li><code>GET /api/auth/me</code></li>
+  </ul>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Create user accounts through Supabase Auth.</li>
+    <li>Log users in and return session/token information.</li>
+    <li>Map Supabase auth users to the app-level <code>users</code> table.</li>
+    <li>Expose the currently logged-in user.</li>
+    <li>Restrict public signup to <code>student</code> role.</li>
+  </ul>
+  <div class="diagram">Client
+  |
+  v
+authRoutes
+  |
+  v
+authController
+  |
+  v
+authService
+  |---------------------> Supabase Auth
+  |
+  +---------------------> usersService ---> users table
+  |
+  v
+JSON response</div>
+
+  <h2>2. Users Module</h2>
+  <p><strong>Files:</strong> <code>routes/usersRoutes.js</code>, <code>controllers/usersController.js</code>, <code>services/usersService.js</code></p>
+  <p><strong>APIs:</strong></p>
+  <ul>
+    <li><code>GET /api/users</code></li>
+    <li><code>POST /api/users</code></li>
+  </ul>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>List application users.</li>
+    <li>Create user profile rows in the <code>users</code> table.</li>
+    <li>Find users by <code>auth_user_id</code>.</li>
+    <li>Upsert user profiles after signup.</li>
+    <li>Store app-level role information.</li>
+  </ul>
+  <div class="diagram">Client
+  |
+  v
+usersRoutes
+  |
+  v
+requireRole
+  |
+  v
+usersController
+  |
+  v
+usersService
+  |
+  v
+users table</div>
+
+  <h2>3. Exams Module</h2>
+  <p><strong>Files:</strong> <code>routes/examsRoutes.js</code>, <code>controllers/examsController.js</code>, <code>services/examsService.js</code></p>
+  <p><strong>APIs:</strong></p>
+  <ul>
+    <li><code>GET /api/exams</code></li>
+    <li><code>GET /api/exams/:id</code></li>
+    <li><code>POST /api/exams</code></li>
+    <li><code>POST /api/exams/:id/questions</code></li>
+  </ul>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Fetch exams with their questions.</li>
+    <li>Create new exams.</li>
+    <li>Add questions to existing exams.</li>
+    <li>Check whether an exam is active based on start and end times.</li>
+  </ul>
+  <div class="diagram">Client
+  |
+  v
+examsRoutes
+  |
+  v
+requireAuth / requireRole
+  |
+  v
+examsController
+  |
+  +--> validate title/start/end
+  |
+  v
+examsService
+  |------------> exams table
+  |
+  +------------> questions table
+  |
+  v
+JSON response</div>
+
+  <div class="page-break"></div>
+  <h2>4. Submissions Module</h2>
+  <p><strong>Files:</strong> <code>routes/submissionsRoutes.js</code>, <code>controllers/submissionsController.js</code>, <code>services/submissionsService.js</code></p>
+  <p><strong>APIs:</strong></p>
+  <ul>
+    <li><code>POST /api/submissions/start</code></li>
+    <li><code>POST /api/submissions/:id/save</code></li>
+    <li><code>POST /api/submissions/:id/submit</code></li>
+    <li><code>GET /api/submissions/:id</code></li>
+  </ul>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Start a submission for a student.</li>
+    <li>Prevent duplicate submissions for the same student/exam pair.</li>
+    <li>Save draft answers.</li>
+    <li>Submit final answers.</li>
+    <li>Generate <code>final_hash</code> at final submit time.</li>
+    <li>Ensure students can access only their own submissions.</li>
+    <li>Ensure submissions only happen while the exam is active.</li>
+  </ul>
+  <div class="diagram">Student request
+  |
+  v
+submissionsRoutes
+  |
+  v
+requireRole(student) / requireAuth
+  |
+  v
+submissionsController
+  |
+  +--> check exam exists
+  +--> check exam active
+  +--> check ownership
+  |
+  v
+submissionsService
+  |
+  +--> submissions table
+  +--> generate final_hash on submit
+  |
+  v
+JSON response</div>
+
+  <h2>5. Integrity Logs Module</h2>
+  <p><strong>Files:</strong> <code>routes/integrityLogsRoutes.js</code>, <code>controllers/integrityLogsController.js</code>, <code>services/integrityLogsService.js</code></p>
+  <p><strong>APIs:</strong></p>
+  <ul>
+    <li><code>POST /api/integrity-logs</code></li>
+    <li><code>GET /api/submissions/:submissionId/integrity-logs</code></li>
+  </ul>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Store integrity monitoring events.</li>
+    <li>Ensure logs belong to valid submissions.</li>
+    <li>Prevent students from logging events on someone else’s submission.</li>
+    <li>Expose integrity history to authorized reviewers.</li>
+  </ul>
+  <div class="diagram">Client
+  |
+  v
+integrityLogsRoutes
+  |
+  v
+requireRole
+  |
+  v
+integrityLogsController
+  |
+  +--> check submission exists
+  +--> check ownership if student
+  |
+  v
+integrityLogsService
+  |
+  v
+integrity_logs table</div>
+
+  <h2>6. Cases Module</h2>
+  <p><strong>Files:</strong> <code>routes/casesRoutes.js</code>, <code>controllers/casesController.js</code>, <code>services/casesService.js</code></p>
+  <p><strong>APIs:</strong></p>
+  <ul>
+    <li><code>GET /api/cases</code></li>
+    <li><code>POST /api/cases</code></li>
+    <li><code>PATCH /api/cases/:id</code></li>
+  </ul>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Open investigation/review cases.</li>
+    <li>Prevent duplicate case creation for one submission.</li>
+    <li>List existing cases.</li>
+    <li>Update case status and verdict.</li>
+    <li>Set <code>resolved_at</code> automatically when resolved.</li>
+  </ul>
+  <div class="diagram">Admin / Proctor request
+  |
+  v
+casesRoutes
+  |
+  v
+requireRole(admin, proctor)
+  |
+  v
+casesController
+  |
+  +--> check submission exists
+  +--> check if case already exists
+  |
+  v
+casesService
+  |
+  v
+cases table</div>
+
+  <div class="page-break"></div>
+  <h2>7. Middleware Module</h2>
+  <p><strong>Files:</strong> <code>middleware/attachUser.js</code>, <code>middleware/requireAuth.js</code>, <code>middleware/requireRole.js</code></p>
+  <p><strong>APIs:</strong> used internally by protected route modules.</p>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Read the Bearer token from the request.</li>
+    <li>Ask Supabase who the token belongs to.</li>
+    <li>Load the matching user profile from the <code>users</code> table.</li>
+    <li>Populate <code>req.user</code>.</li>
+    <li>Enforce authentication and role-based access control.</li>
+  </ul>
+  <div class="diagram">Incoming request
+  |
+  v
+attachUser
+  |
+  +--> read Authorization header
+  +--> authClient.auth.getUser(token)
+  +--> usersService.findUserByAuthUserId(...)
+  |
+  v
+req.user
+  |
+  v
+requireAuth / requireRole
+  |
+  v
+allow or reject</div>
+
+  <h2>8. Config Module</h2>
+  <p><strong>Files:</strong> <code>config/env.js</code></p>
+  <p><strong>APIs:</strong> none, internal only.</p>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Load the root <code>.env</code> file.</li>
+    <li>Validate required environment variables.</li>
+    <li>Export config values to the rest of the app.</li>
+  </ul>
+  <div class="diagram">Server startup
+  |
+  v
+env.js
+  |
+  +--> load .env
+  +--> check required keys
+  |
+  v
+export config</div>
+
+  <h2>9. Database Client Module</h2>
+  <p><strong>Files:</strong> <code>db/supabase.js</code></p>
+  <p><strong>APIs:</strong> none, internal only.</p>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Create the service-role Supabase client.</li>
+    <li>Create the anon-key auth client.</li>
+    <li>Provide reusable clients to all services.</li>
+  </ul>
+  <div class="diagram">Service layer
+  |
+  v
+supabase.js
+  |
+  +--> service-role client ---> database operations
+  |
+  +--> anon auth client -----> auth operations</div>
+
+  <h2>10. HTTP Utilities Module</h2>
+  <p><strong>Files:</strong> <code>utils/http.js</code></p>
+  <p><strong>APIs:</strong> none, helper-only.</p>
+  <p><strong>Responsibilities:</strong></p>
+  <ul>
+    <li>Keep controller responses consistent.</li>
+    <li>Provide shared helpers for <code>400</code>, <code>401</code>, <code>403</code>, <code>404</code>, and <code>500</code>.</li>
+  </ul>
+  <div class="diagram">Controller
+  |
+  v
+http.js helper
+  |
+  v
+standard JSON error/response</div>
+
+  <h2>Final Summary</h2>
+  <p>This backend follows a consistent pattern across all business areas:</p>
+  <ul>
+    <li><strong>Routes</strong> define the URL structure.</li>
+    <li><strong>Middleware</strong> verifies identity and permissions.</li>
+    <li><strong>Controllers</strong> validate request data and enforce rules.</li>
+    <li><strong>Services</strong> handle database and Supabase interaction.</li>
+    <li><strong>Supabase</strong> stores both auth identities and business data.</li>
+  </ul>
+</body>
+</html>

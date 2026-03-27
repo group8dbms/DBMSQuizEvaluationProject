@@ -5,6 +5,7 @@ Desktop.ini
 .vscode/
 .idea/
 node_modules/
+.chrome-headless/
 
 .env
 .env.local
