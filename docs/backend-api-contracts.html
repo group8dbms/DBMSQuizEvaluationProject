@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DBMS Backend API Contracts</title>
+  <style>
+    :root {
+      --ink: #1f2937;
+      --muted: #4b5563;
+      --line: #d1d5db;
+      --panel: #f8fafc;
+      --accent: #1d4ed8;
+    }
+    body {
+      margin: 32px auto;
+      max-width: 1020px;
+      padding: 0 24px 48px;
+      color: var(--ink);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.45;
+    }
+    h1, h2, h3 {
+      color: #111827;
+      margin-top: 22px;
+      margin-bottom: 10px;
+    }
+    h1 {
+      font-size: 31px;
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 10px;
+    }
+    h2 {
+      font-size: 22px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 6px;
+    }
+    h3 {
+      font-size: 17px;
+    }
+    p, li {
+      font-size: 14px;
+    }
+    ul {
+      margin-top: 8px;
+      margin-bottom: 12px;
+    }
+    code {
+      background: #eff6ff;
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-family: Consolas, monospace;
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 18px;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      padding: 8px 10px;
+    }
+    th {
+      background: #eff6ff;
+    }
+    pre {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      padding: 12px 14px;
+      overflow-x: auto;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .subtle {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <h1>DBMS Quiz Evaluation Project API Contracts</h1>
+  <p class="subtle">This document focuses on request input, response output, validation expectations, and one example per module based on the current Node.js backend.</p>
+
+  <h2>Quick Summary Table</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Module</th>
+        <th>Main APIs</th>
+        <th>Input Focus</th>
+        <th>Output Focus</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Auth</td>
+        <td><code>POST /api/auth/signup</code><br><code>POST /api/auth/login</code><br><code>GET /api/auth/me</code></td>
+        <td>Email, password, role</td>
+        <td>User, session, profile</td>
+      </tr>
+      <tr>
+        <td>Users</td>
+        <td><code>GET /api/users</code><br><code>POST /api/users</code></td>
+        <td>Email, role, optional auth mapping</td>
+        <td>User rows</td>
+      </tr>
+      <tr>
+        <td>Exams</td>
+        <td><code>GET /api/exams</code><br><code>GET /api/exams/:id</code><br><code>POST /api/exams</code><br><code>POST /api/exams/:id/questions</code></td>
+        <td>Exam metadata and question data</td>
+        <td>Exam objects and question objects</td>
+      </tr>
+      <tr>
+        <td>Submissions</td>
+        <td><code>POST /api/submissions/start</code><br><code>POST /api/submissions/:id/save</code><br><code>POST /api/submissions/:id/submit</code><br><code>GET /api/submissions/:id</code></td>
+        <td>Exam id, answer_data</td>
+        <td>Submission object with status/hash</td>
+      </tr>
+      <tr>
+        <td>Integrity Logs</td>
+        <td><code>POST /api/integrity-logs</code><br><code>GET /api/submissions/:submissionId/integrity-logs</code></td>
+        <td>Submission id, event type, event details</td>
+        <td>Log objects</td>
+      </tr>
+      <tr>
+        <td>Cases</td>
+        <td><code>GET /api/cases</code><br><code>POST /api/cases</code><br><code>PATCH /api/cases/:id</code></td>
+        <td>Submission id, verdict, status update</td>
+        <td>Case objects</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>1. Auth Module</h2>
+  <h3>APIs</h3>
+  <ul>
+    <li><code>POST /api/auth/signup</code></li>
+    <li><code>POST /api/auth/login</code></li>
+    <li><code>GET /api/auth/me</code></li>
+  </ul>
+  <h3>Input</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Input</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>POST /api/auth/signup</code></td>
+        <td><code>email</code>, <code>password</code>, optional <code>role</code></td>
+        <td>Only <code>student</code> is allowed through public signup.</td>
+      </tr>
+      <tr>
+        <td><code>POST /api/auth/login</code></td>
+        <td><code>email</code>, <code>password</code></td>
+        <td>Requires a confirmed Supabase auth account if email confirmation is enabled.</td>
+      </tr>
+      <tr>
+        <td><code>GET /api/auth/me</code></td>
+        <td><code>Authorization: Bearer &lt;token&gt;</code></td>
+        <td>Token is validated using Supabase Auth.</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Output</h3>
+  <ul>
+    <li><code>signup</code> returns <code>user</code>, <code>session</code>, and <code>profile</code></li>
+    <li><code>login</code> returns <code>user</code>, <code>session</code>, and <code>profile</code></li>
+    <li><code>me</code> returns <code>id</code>, <code>authUserId</code>, <code>email</code>, <code>role</code></li>
+  </ul>
+  <h3>Example</h3>
+  <pre>{
+  "request": {
+    "method": "POST",
+    "url": "/api/auth/login",
+    "body": {
+      "email": "group8postmanstudent@gmail.com",
+      "password": "Student@123"
+    }
+  },
+  "response": {
+    "user": { "id": "supabase-auth-uuid", "email": "group8postmanstudent@gmail.com" },
+    "session": { "access_token": "jwt-token" },
+    "profile": { "id": 6, "email": "group8postmanstudent@gmail.com", "role": "student" }
+  }
+}</pre>
+
+  <h2>2. Users Module</h2>
+  <h3>APIs</h3>
+  <ul>
+    <li><code>GET /api/users</code></li>
+    <li><code>POST /api/users</code></li>
+  </ul>
+  <h3>Input</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Input</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>GET /api/users</code></td>
+        <td>Bearer token</td>
+        <td>Allowed roles: <code>admin</code>, <code>faculty</code>, <code>proctor</code>.</td>
+      </tr>
+      <tr>
+        <td><code>POST /api/users</code></td>
+        <td><code>email</code>, <code>role</code>, optional <code>password_hash</code>, optional <code>auth_user_id</code></td>
+        <td>Admin-only route.</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Output</h3>
+  <ul>
+    <li><code>GET</code> returns an array of user rows.</li>
+    <li><code>POST</code> returns the created user row.</li>
+  </ul>
+  <h3>Example</h3>
+  <pre>{
+  "request": {
+    "method": "POST",
+    "url": "/api/users",
+    "body": {
+      "email": "faculty1@college.com",
+      "role": "faculty",
+      "auth_user_id": "auth-uuid"
+    }
+  },
+  "response": {
+    "id": 8,
+    "email": "faculty1@college.com",
+    "role": "faculty",
+    "auth_user_id": "auth-uuid"
+  }
+}</pre>
+
+  <div class="page-break"></div>
+  <h2>3. Exams Module</h2>
+  <h3>APIs</h3>
+  <ul>
+    <li><code>GET /api/exams</code></li>
+    <li><code>GET /api/exams/:id</code></li>
+    <li><code>POST /api/exams</code></li>
+    <li><code>POST /api/exams/:id/questions</code></li>
+  </ul>
+  <h3>Input</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Input</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>GET /api/exams</code></td>
+        <td>Bearer token</td>
+        <td>Any authenticated user can read exams.</td>
+      </tr>
+      <tr>
+        <td><code>GET /api/exams/:id</code></td>
+        <td>Bearer token, exam id path param</td>
+        <td>Returns one exam with questions.</td>
+      </tr>
+      <tr>
+        <td><code>POST /api/exams</code></td>
+        <td><code>title</code>, <code>start_time</code>, <code>end_time</code>, optional <code>config_json</code></td>
+        <td>Allowed roles: <code>admin</code>, <code>faculty</code>.</td>
+      </tr>
+      <tr>
+        <td><code>POST /api/exams/:id/questions</code></td>
+        <td><code>text</code>, <code>type</code>, optional <code>correct_answer</code>, optional <code>marks</code></td>
+        <td>Exam must exist before question creation.</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Output</h3>
+  <ul>
+    <li>Exam list returns exam objects with nested questions.</li>
+    <li>Create exam returns the inserted exam row.</li>
+    <li>Create question returns the inserted question row.</li>
+  </ul>
+  <h3>Example</h3>
+  <pre>{
+  "request": {
+    "method": "POST",
+    "url": "/api/exams",
+    "body": {
+      "title": "Postman Active Exam",
+      "start_time": "2026-03-27T10:00:00.000Z",
+      "end_time": "2026-03-27T12:00:00.000Z",
+      "config_json": {
+        "duration_minutes": 60,
+        "tab_switch_limit": 3
+      }
+    }
+  },
+  "response": {
+    "id": 2,
+    "title": "Postman Active Exam",
+    "start_time": "2026-03-27T10:00:00.000Z",
+    "end_time": "2026-03-27T12:00:00.000Z",
+    "created_by": 7
+  }
+}</pre>
+
+  <h2>4. Submissions Module</h2>
+  <h3>APIs</h3>
+  <ul>
+    <li><code>POST /api/submissions/start</code></li>
+    <li><code>POST /api/submissions/:id/save</code></li>
+    <li><code>POST /api/submissions/:id/submit</code></li>
+    <li><code>GET /api/submissions/:id</code></li>
+  </ul>
+  <h3>Input</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Input</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>POST /api/submissions/start</code></td>
+        <td><code>exam_id</code>, optional <code>answer_data</code></td>
+        <td>Student-only. Exam must be active.</td>
+      </tr>
+      <tr>
+        <td><code>POST /api/submissions/:id/save</code></td>
+        <td><code>answer_data</code></td>
+        <td>Student can only save their own draft submission.</td>
+      </tr>
+      <tr>
+        <td><code>POST /api/submissions/:id/submit</code></td>
+        <td><code>answer_data</code></td>
+        <td>Student can only submit their own active submission.</td>
+      </tr>
+      <tr>
+        <td><code>GET /api/submissions/:id</code></td>
+        <td>Submission id path param</td>
+        <td>Students can view only their own; staff can view wider data.</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Output</h3>
+  <ul>
+    <li>Start returns the submission row, usually with <code>status: "draft"</code>.</li>
+    <li>Save returns the updated draft submission.</li>
+    <li>Submit returns the updated submission with <code>final_hash</code> and <code>status: "submitted"</code>.</li>
+    <li>Get returns the submission plus related exam and user details.</li>
+  </ul>
+  <h3>Example</h3>
+  <pre>{
+  "request": {
+    "method": "POST",
+    "url": "/api/submissions/start",
+    "body": {
+      "exam_id": 2,
+      "answer_data": [
+        {
+          "question_id": 4,
+          "answer": "Database Management System"
+        }
+      ]
+    }
+  },
+  "response": {
+    "id": 2,
+    "student_id": 6,
+    "exam_id": 2,
+    "answer_data": [
+      {
+        "question_id": 4,
+        "answer": "Database Management System"
+      }
+    ],
+    "status": "draft"
+  }
+}</pre>
+
+  <h2>5. Integrity Logs Module</h2>
+  <h3>APIs</h3>
+  <ul>
+    <li><code>POST /api/integrity-logs</code></li>
+    <li><code>GET /api/submissions/:submissionId/integrity-logs</code></li>
+  </ul>
+  <h3>Input</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Input</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>POST /api/integrity-logs</code></td>
+        <td><code>submission_id</code>, <code>event_type</code>, optional <code>event_details</code></td>
+        <td>Allowed roles: <code>student</code>, <code>proctor</code>, <code>admin</code>.</td>
+      </tr>
+      <tr>
+        <td><code>GET /api/submissions/:submissionId/integrity-logs</code></td>
+        <td>Submission id path param</td>
+        <td>Allowed roles: <code>admin</code>, <code>faculty</code>, <code>proctor</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Output</h3>
+  <ul>
+    <li>Create returns the inserted integrity log row.</li>
+    <li>Get returns a list of log rows ordered by timestamp descending.</li>
+  </ul>
+  <h3>Example</h3>
+  <pre>{
+  "request": {
+    "method": "POST",
+    "url": "/api/integrity-logs",
+    "body": {
+      "submission_id": 2,
+      "event_type": "tab_switch",
+      "event_details": {
+        "count": 1,
+        "source": "postman"
+      }
+    }
+  },
+  "response": {
+    "id": 3,
+    "submission_id": 2,
+    "event_type": "tab_switch",
+    "event_details": {
+      "count": 1,
+      "source": "postman"
+    }
+  }
+}</pre>
+
+  <div class="page-break"></div>
+  <h2>6. Cases Module</h2>
+  <h3>APIs</h3>
+  <ul>
+    <li><code>GET /api/cases</code></li>
+    <li><code>POST /api/cases</code></li>
+    <li><code>PATCH /api/cases/:id</code></li>
+  </ul>
+  <h3>Input</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Input</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>GET /api/cases</code></td>
+        <td>Bearer token</td>
+        <td>Allowed roles: <code>admin</code>, <code>proctor</code>.</td>
+      </tr>
+      <tr>
+        <td><code>POST /api/cases</code></td>
+        <td><code>submission_id</code>, optional <code>verdict</code></td>
+        <td>Submission must exist. Existing case is returned if already present.</td>
+      </tr>
+      <tr>
+        <td><code>PATCH /api/cases/:id</code></td>
+        <td>One or more of <code>status</code>, <code>verdict</code>, <code>resolved_at</code></td>
+        <td>If status becomes <code>resolved</code>, backend auto-fills <code>resolved_at</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Output</h3>
+  <ul>
+    <li>List returns case rows with related submission and proctor email data.</li>
+    <li>Create returns the created or existing case.</li>
+    <li>Patch returns the updated case row.</li>
+  </ul>
+  <h3>Example</h3>
+  <pre>{
+  "request": {
+    "method": "POST",
+    "url": "/api/cases",
+    "body": {
+      "submission_id": 2,
+      "verdict": "Open for manual review"
+    }
+  },
+  "response": {
+    "id": 2,
+    "submission_id": 2,
+    "proctor_id": 7,
+    "status": "open",
+    "verdict": "Open for manual review"
+  }
+}</pre>
+
+  <h2>Common Protected Input</h2>
+  <p>Most protected endpoints require the same authentication input:</p>
+  <pre>{
+  "headers": {
+    "Authorization": "Bearer &lt;access_token&gt;"
+  }
+}</pre>
+
+  <h2>Common Error Output Format</h2>
+  <p>The controllers use shared helpers from <code>utils/http.js</code>, so errors usually follow this shape:</p>
+  <pre>{
+  "error": "Forbidden",
+  "message": "This exam is not currently active."
+}</pre>
+
+  <h2>Final Notes</h2>
+  <ul>
+    <li>The backend currently uses JSON request bodies for all write operations.</li>
+    <li>The backend returns JSON responses for both success and failure.</li>
+    <li>Role checks are backend-enforced, not trusted from client input.</li>
+    <li>Students are intentionally restricted to their own submissions and logs.</li>
+  </ul>
+</body>
+</html>
