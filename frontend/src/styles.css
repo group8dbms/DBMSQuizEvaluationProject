@@ -103,7 +103,7 @@ button, input, textarea, select { font: inherit; }
 
 .layout {
   display: grid;
-  grid-template-columns: 0.92fr 1.5fr;
+  grid-template-columns: 1fr;
   gap: 24px;
   align-items: start;
 }
@@ -130,13 +130,16 @@ button, input, textarea, select { font: inherit; }
   color: #18253c;
 }
 
-.auth-grid, .workspace-grid, .exam-stage {
+.auth-grid, .workspace-grid, .exam-stage, .dual-grid, .role-grid, .stat-grid, .split-layout {
   display: grid;
   gap: 16px;
 }
 
 .auth-grid, .workspace-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .exam-stage { grid-template-columns: 1.6fr 0.8fr; }
+.dual-grid, .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.split-layout { grid-template-columns: 0.72fr 1.28fr; }
 
 .card {
   background: linear-gradient(180deg, rgba(255, 252, 247, 0.95), rgba(250, 249, 246, 0.92));
@@ -145,7 +148,8 @@ button, input, textarea, select { font: inherit; }
   padding: 18px;
 }
 
-.secondary-card {
+.secondary-card,
+.accent-card {
   background: linear-gradient(180deg, rgba(240, 247, 246, 0.96), rgba(247, 252, 251, 0.95));
 }
 
@@ -215,11 +219,22 @@ input:focus, textarea:focus, select:focus {
   color: #0f766e;
 }
 
+.profile-chip,
+.role-tabs,
+.button-row,
+.compact-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .primary-button:hover, .outline-button:hover, .ghost-button:hover, .tab:hover, .list-item:hover {
   transform: translateY(-1px);
 }
 
-.tab-row {
+.tab-row,
+.role-tabs {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
@@ -265,12 +280,53 @@ input:focus, textarea:focus, select:focus {
   font-size: 2rem;
 }
 
+.stat-card h3,
+.hero-card-large h3 {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.full-span {
+  grid-column: 1 / -1;
+}
+
 .exam-card-header, .action-row, .pill-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.selection-card {
+  margin-bottom: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(244, 250, 249, 0.9);
+  border: 1px solid rgba(20, 184, 166, 0.18);
+}
+
+.checkbox-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-weight: 500;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
 }
 
 .pill {
@@ -321,7 +377,10 @@ input:focus, textarea:focus, select:focus {
   font-weight: 700;
 }
 
-.case-item {
+.case-item,
+.timeline-item,
+.result-card,
+.hash-card {
   display: grid;
   gap: 8px;
   border-radius: 18px;
@@ -330,8 +389,17 @@ input:focus, textarea:focus, select:focus {
   border: 1px solid rgba(249, 115, 22, 0.16);
 }
 
+.hash-card code {
+  word-break: break-all;
+}
+
+.mini-form {
+  display: grid;
+  gap: 8px;
+}
+
 @media (max-width: 1024px) {
-  .hero, .layout, .auth-grid, .workspace-grid, .exam-stage { grid-template-columns: 1fr; }
+  .hero, .layout, .auth-grid, .workspace-grid, .exam-stage, .dual-grid, .role-grid, .stat-grid, .split-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
