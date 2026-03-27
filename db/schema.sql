@@ -22,10 +22,19 @@ create table questions (
   id bigserial primary key,
   exam_id bigint not null references exams(id) on delete cascade,
   text text not null,
-  type varchar(30) not null check (type in ('mcq', 'true_false', 'short_answer', 'long_answer')),
+  type varchar(30) not null check (type in ('mcq', 'true_false', 'short_answer', 'long_answer', 'coding')),
   correct_answer text,
   marks numeric(6,2) not null default 1,
   created_at timestamp default now()
+);
+
+create table exam_assignments (
+  id bigserial primary key,
+  exam_id bigint not null references exams(id) on delete cascade,
+  student_id bigint not null references users(id) on delete cascade,
+  assigned_by bigint references users(id) on delete set null,
+  assigned_at timestamp default now(),
+  unique (exam_id, student_id)
 );
 
 create table submissions (

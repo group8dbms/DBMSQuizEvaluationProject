@@ -21,7 +21,12 @@ insert into exams (title, start_time, end_time, config_json, created_by) values
 insert into questions (exam_id, text, type, correct_answer, marks) values
   (1, 'What does DBMS stand for?', 'mcq', 'Database Management System', 2),
   (1, 'A primary key must be unique for every row.', 'true_false', 'True', 2),
-  (1, 'Write the SQL command used to fetch data from a table.', 'short_answer', 'SELECT', 3);
+  (1, 'Write the SQL command used to fetch data from a table.', 'short_answer', 'SELECT', 3),
+  (1, 'Write a SQL query to list all students ordered by name.', 'coding', 'SELECT * FROM students ORDER BY name;', 3);
+
+insert into exam_assignments (exam_id, student_id, assigned_by) values
+  (1, 2, 1),
+  (1, 3, 1);
 
 insert into submissions (student_id, exam_id, answer_data, final_hash, status, submitted_at) values
   (

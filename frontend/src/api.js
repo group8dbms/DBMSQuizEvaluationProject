@@ -42,6 +42,10 @@ export async function getExams(token) {
   return request("/api/exams", { token });
 }
 
+export async function getUsers(token) {
+  return request("/api/users", { token });
+}
+
 export async function createExam(token, payload) {
   return request("/api/exams", {
     method: "POST",
@@ -56,6 +60,18 @@ export async function createQuestion(token, examId, payload) {
     token,
     body: JSON.stringify(payload)
   });
+}
+
+export async function assignExam(token, examId, payload) {
+  return request(`/api/exams/${examId}/assignments`, {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getExamAssignments(token, examId) {
+  return request(`/api/exams/${examId}/assignments`, { token });
 }
 
 export async function startSubmission(token, payload) {

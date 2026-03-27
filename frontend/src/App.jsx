@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   API_BASE_URL,
+  assignExam,
   createExam,
   createIntegrityLog,
   createQuestion,
   getCases,
   getCurrentUser,
+  getExamAssignments,
   getExams,
+  getUsers,
   login,
   saveSubmission,
   signup,
@@ -44,9 +47,19 @@ function formatDate(value) {
 }
 
 function authHeaderHint(role) {
-  if (role === "student") return "Student mode: browse active exams, draft answers, submit securely, and log integrity events.";
-  if (role === "admin" || role === "faculty") return "Admin/Faculty mode: create exams, add questions, and monitor the exam pipeline.";
+  if (role === "student") return "Assigned exams appear here. You can start only inside the active window.";
+  if (role === "admin") return "Admin mode: create exams, assign them to students, and review suspicious activity.";
+  if (role === "faculty") return "Faculty mode: create exams and add questions.";
   return "Reviewer mode: inspect cases and integrity events.";
+}
+
+function getExamWindowStatus(exam) {
+  const now = new Date();
+  const start = new Date(exam.start_time);
+  const end = new Date(exam.end_time);
+  if (now < start) return "upcoming";
+  if (now > end) return "closed";
+  return "active";
 }
 
 export default function App() {
@@ -54,7 +67,10 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [exams, setExams] = useState([]);
   const [cases, setCases] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [selectedExamId, setSelectedExamId] = useState(null);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
   const [draftAnswers, setDraftAnswers] = useState({});
   const [submissionsByExam, setSubmissionsByExam] = useState({});
   const [authForm, setAuthForm] = useState(initialAuthForm);
@@ -62,7 +78,7 @@ export default function App() {
   const [examForm, setExamForm] = useState(initialExamForm);
   const [questionForm, setQuestionForm] = useState(initialQuestionForm);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("Connect the frontend to the backend and move through the workflow like a real exam portal.");
+  const [message, setMessage] = useState("Build, assign, attempt, and review exams from one command center.");
   const [activePanel, setActivePanel] = useState("overview");
 
   const token = session?.access_token || "";
@@ -71,11 +87,26 @@ export default function App() {
     [exams, selectedExamId]
   );
 
+  const canManageExams = currentUser?.role === "admin" || currentUser?.role === "faculty";
+  const canAssignExams = currentUser?.role === "admin";
+  const canReviewCases = currentUser?.role === "admin" || currentUser?.role === "proctor";
+  const isStudent = currentUser?.role === "student";
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("verified") === "1" || params.get("type") === "signup") {
+      setMessage("Your email verification landed on the frontend correctly. You can sign in now.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     if (!session?.access_token) {
       setCurrentUser(null);
       setExams([]);
       setCases([]);
+      setStudents([]);
+      setAssignments([]);
       return;
     }
 
@@ -84,14 +115,24 @@ export default function App() {
       try {
         const user = await getCurrentUser(session.access_token);
         setCurrentUser(user);
+
         const examList = await getExams(session.access_token);
         setExams(examList);
+        setSelectedExamId((prev) => prev || examList[0]?.id || null);
+
         if (user.role === "admin" || user.role === "proctor") {
           setCases(await getCases(session.access_token));
         } else {
           setCases([]);
         }
-        setSelectedExamId((prev) => prev || examList[0]?.id || null);
+
+        if (user.role === "admin") {
+          const allUsers = await getUsers(session.access_token);
+          setStudents(allUsers.filter((item) => item.role === "student"));
+        } else {
+          setStudents([]);
+        }
+
         setMessage(`Signed in as ${user.email}. ${authHeaderHint(user.role)}`);
       } catch (error) {
         clearStoredSession();
@@ -105,6 +146,38 @@ export default function App() {
     bootstrap();
   }, [session]);
 
+  useEffect(() => {
+    if (!token || !canAssignExams || !selectedExamId) {
+      setAssignments([]);
+      return;
+    }
+
+    async function loadAssignments() {
+      try {
+        const rows = await getExamAssignments(token, selectedExamId);
+        setAssignments(rows);
+      } catch (error) {
+        setAssignments([]);
+        setMessage(error.message);
+      }
+    }
+
+    loadAssignments();
+  }, [token, canAssignExams, selectedExamId]);
+
+  async function refreshExams() {
+    if (!token) return;
+    const examList = await getExams(token);
+    setExams(examList);
+    setSelectedExamId((prev) => prev || examList[0]?.id || null);
+  }
+
+  async function refreshAssignments(examId = selectedExamId) {
+    if (!token || !canAssignExams || !examId) return;
+    const rows = await getExamAssignments(token, examId);
+    setAssignments(rows);
+  }
+
   async function handleLogin(event) {
     event.preventDefault();
     setLoading(true);
@@ -113,7 +186,7 @@ export default function App() {
       setSession(result.session);
       saveStoredSession(result.session);
       setAuthForm(initialAuthForm);
-      setMessage("Login successful. Pulling your dashboard now.");
+      setMessage("Login successful. Loading your role-specific dashboard.");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -127,7 +200,7 @@ export default function App() {
     try {
       await signup(signupForm);
       setSignupForm(initialSignupForm);
-      setMessage("Student signup created. If email confirmation is enabled in Supabase, confirm before login.");
+      setMessage("Student signup created. The verification email now redirects back to the frontend root page.");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -141,17 +214,13 @@ export default function App() {
     setCurrentUser(null);
     setExams([]);
     setCases([]);
+    setStudents([]);
+    setAssignments([]);
     setSelectedExamId(null);
+    setSelectedStudentId("");
     setDraftAnswers({});
     setSubmissionsByExam({});
     setMessage("Session cleared. You are back in guest mode.");
-  }
-
-  async function refreshExams() {
-    if (!token) return;
-    const examList = await getExams(token);
-    setExams(examList);
-    setSelectedExamId((prev) => prev || examList[0]?.id || null);
   }
 
   async function handleCreateExam(event) {
@@ -171,8 +240,8 @@ export default function App() {
       setSelectedExamId(exam.id);
       setQuestionForm((prev) => ({ ...prev, examId: String(exam.id) }));
       setExamForm(initialExamForm);
-      setActivePanel("builder");
-      setMessage(`Exam "${exam.title}" created. You can add questions now.`);
+      setActivePanel(canAssignExams ? "allocation" : "builder");
+      setMessage(`Exam "${exam.title}" created. Now add questions and assignments.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -186,15 +255,35 @@ export default function App() {
     try {
       const examId = questionForm.examId || selectedExam?.id;
       if (!examId) throw new Error("Choose an exam before adding a question.");
+
       await createQuestion(token, examId, {
         text: questionForm.text,
         type: questionForm.type,
         correct_answer: questionForm.correct_answer,
         marks: Number(questionForm.marks)
       });
+
       await refreshExams();
       setQuestionForm(initialQuestionForm);
       setMessage("Question added to the exam.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAssignExam(event) {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      if (!selectedExamId || !selectedStudentId) {
+        throw new Error("Choose both an exam and a student before assigning.");
+      }
+      await assignExam(token, selectedExamId, { student_id: Number(selectedStudentId) });
+      await refreshAssignments(selectedExamId);
+      setSelectedStudentId("");
+      setMessage("Exam assigned to the selected student.");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -242,16 +331,19 @@ export default function App() {
     try {
       const existing = submissionsByExam[exam.id];
       if (!existing) throw new Error("Start or save a submission before final submit.");
+
       const answer_data = (exam.questions || []).map((question) => ({
         question_id: question.id,
         answer: draftAnswers[question.id] || ""
       }));
+
       const submitted = await submitSubmission(token, existing.id, { answer_data });
       await createIntegrityLog(token, {
         submission_id: submitted.id,
         event_type: "tab_switch",
         event_details: { count: 0, note: "Final submission recorded from frontend demo." }
       });
+
       setSubmissionsByExam((prev) => ({ ...prev, [exam.id]: submitted }));
       setMessage(`Submission ${submitted.id} finalized and integrity log recorded.`);
     } catch (error) {
@@ -261,21 +353,17 @@ export default function App() {
     }
   }
 
-  const canManageExams = currentUser?.role === "admin" || currentUser?.role === "faculty";
-  const canReviewCases = currentUser?.role === "admin" || currentUser?.role === "proctor";
-  const isStudent = currentUser?.role === "student";
-
   return (
     <div className="app-shell">
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
+
       <header className="hero">
         <div>
           <p className="eyebrow">Exam Integrity Workspace</p>
           <h1>DBMS Exam Command Center</h1>
           <p className="hero-copy">
-            A vivid frontend for the backend we already built: role-based access, live exam workflows,
-            protected submissions, and integrity review in one place.
+            Build exams, assign them to students, and keep the actual attempt workflow inside the permitted time window.
           </p>
         </div>
         <div className="hero-card">
@@ -329,6 +417,7 @@ export default function App() {
             <div className="tab-row">
               <button className={activePanel === "overview" ? "tab active" : "tab"} onClick={() => setActivePanel("overview")}>Overview</button>
               {canManageExams ? <button className={activePanel === "builder" ? "tab active" : "tab"} onClick={() => setActivePanel("builder")}>Builder</button> : null}
+              {canAssignExams ? <button className={activePanel === "allocation" ? "tab active" : "tab"} onClick={() => setActivePanel("allocation")}>Allocation</button> : null}
               {isStudent ? <button className={activePanel === "exam" ? "tab active" : "tab"} onClick={() => setActivePanel("exam")}>Exam Desk</button> : null}
               {canReviewCases ? <button className={activePanel === "review" ? "tab active" : "tab"} onClick={() => setActivePanel("review")}>Review</button> : null}
             </div>
@@ -336,17 +425,26 @@ export default function App() {
 
           {activePanel === "overview" ? (
             <div className="workspace-grid">
-              <div className="card metric-card"><p className="eyebrow">Exams Live</p><h3>{exams.length}</h3><p className="muted">Every authenticated user can inspect the exam catalog through the backend.</p></div>
-              <div className="card metric-card warm-card"><p className="eyebrow">Cases Visible</p><h3>{cases.length}</h3><p className="muted">Admins and proctors can audit suspicious submissions from one review queue.</p></div>
+              <div className="card metric-card">
+                <p className="eyebrow">{isStudent ? "Assigned Exams" : "Exams Live"}</p>
+                <h3>{exams.length}</h3>
+                <p className="muted">{isStudent ? "Only exams allocated to this student appear here." : "Admins and faculty can create and manage the full exam catalog."}</p>
+              </div>
+              <div className="card metric-card warm-card">
+                <p className="eyebrow">Cases Visible</p>
+                <h3>{cases.length}</h3>
+                <p className="muted">Admins and proctors can audit suspicious submissions from one review queue.</p>
+              </div>
               <div className="card roster-card">
-                <h3>Exam Roster</h3>
+                <h3>{isStudent ? "Assigned Exam Roster" : "Exam Roster"}</h3>
                 <div className="list-stack">
                   {exams.map((exam) => (
                     <button key={exam.id} className={selectedExam?.id === exam.id ? "list-item selected" : "list-item"} onClick={() => setSelectedExamId(exam.id)}>
-                      <span>{exam.title}</span><span>{exam.questions?.length || 0} questions</span>
+                      <span>{exam.title}</span>
+                      <span>{getExamWindowStatus(exam)}</span>
                     </button>
                   ))}
-                  {!exams.length ? <p className="muted">Sign in to load exams from the backend.</p> : null}
+                  {!exams.length ? <p className="muted">{isStudent ? "No exams have been assigned to this student yet." : "No exams found yet."}</p> : null}
                 </div>
               </div>
               <div className="card spotlight-card">
@@ -355,6 +453,7 @@ export default function App() {
                   <>
                     <h3>{selectedExam.title}</h3>
                     <p>{formatDate(selectedExam.start_time)} to {formatDate(selectedExam.end_time)}</p>
+                    <p className="muted">Status: {getExamWindowStatus(selectedExam)} • Questions: {selectedExam.questions?.length || 0}</p>
                     <p className="muted">Duration: {selectedExam.config_json?.duration_minutes || "N/A"} minutes, tab switch limit: {selectedExam.config_json?.tab_switch_limit || "N/A"}</p>
                   </>
                 ) : <p className="muted">No exam selected yet.</p>}
@@ -378,11 +477,35 @@ export default function App() {
                 <h3>Add Question</h3>
                 <label>Exam<select value={questionForm.examId} onChange={(e) => setQuestionForm((p) => ({ ...p, examId: e.target.value }))}><option value="">Select exam</option>{exams.map((exam) => <option key={exam.id} value={exam.id}>{exam.title}</option>)}</select></label>
                 <label>Question Text<textarea value={questionForm.text} onChange={(e) => setQuestionForm((p) => ({ ...p, text: e.target.value }))} rows={4} /></label>
-                <label>Type<select value={questionForm.type} onChange={(e) => setQuestionForm((p) => ({ ...p, type: e.target.value }))}><option value="short_answer">short_answer</option><option value="mcq">mcq</option><option value="true_false">true_false</option><option value="long_answer">long_answer</option></select></label>
-                <label>Correct Answer<input value={questionForm.correct_answer} onChange={(e) => setQuestionForm((p) => ({ ...p, correct_answer: e.target.value }))} /></label>
+                <label>Type<select value={questionForm.type} onChange={(e) => setQuestionForm((p) => ({ ...p, type: e.target.value }))}><option value="short_answer">short_answer</option><option value="mcq">mcq</option><option value="true_false">true_false</option><option value="long_answer">long_answer</option><option value="coding">coding</option></select></label>
+                <label>Correct Answer / Key<input value={questionForm.correct_answer} onChange={(e) => setQuestionForm((p) => ({ ...p, correct_answer: e.target.value }))} /></label>
                 <label>Marks<input type="number" value={questionForm.marks} onChange={(e) => setQuestionForm((p) => ({ ...p, marks: e.target.value }))} /></label>
                 <button className="outline-button" type="submit" disabled={loading}>Add Question</button>
               </form>
+            </div>
+          ) : null}
+
+          {activePanel === "allocation" && canAssignExams ? (
+            <div className="workspace-grid">
+              <form className="card" onSubmit={handleAssignExam}>
+                <h3>Assign Exam To Student</h3>
+                <label>Exam<select value={selectedExamId || ""} onChange={(e) => setSelectedExamId(e.target.value)}><option value="">Select exam</option>{exams.map((exam) => <option key={exam.id} value={exam.id}>{exam.title}</option>)}</select></label>
+                <label>Student<select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)}><option value="">Select student</option>{students.map((student) => <option key={student.id} value={student.id}>{student.email}</option>)}</select></label>
+                <button className="primary-button" type="submit" disabled={loading}>Assign Exam</button>
+              </form>
+
+              <div className="card secondary-card">
+                <h3>Assigned Students</h3>
+                <div className="list-stack">
+                  {assignments.map((assignment) => (
+                    <div className="list-item" key={assignment.id}>
+                      <span>{assignment.users?.email || `Student #${assignment.student_id}`}</span>
+                      <span>{formatDate(assignment.assigned_at)}</span>
+                    </div>
+                  ))}
+                  {!assignments.length ? <p className="muted">No students assigned to the selected exam yet.</p> : null}
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -392,8 +515,15 @@ export default function App() {
                 <>
                   <div className="card exam-card">
                     <div className="exam-card-header">
-                      <div><p className="eyebrow">Student Exam Desk</p><h3>{selectedExam.title}</h3></div>
-                      <div className="pill-row"><span className="pill">Questions: {selectedExam.questions?.length || 0}</span><span className="pill">Duration: {selectedExam.config_json?.duration_minutes || "N/A"}m</span></div>
+                      <div>
+                        <p className="eyebrow">Student Exam Desk</p>
+                        <h3>{selectedExam.title}</h3>
+                      </div>
+                      <div className="pill-row">
+                        <span className={`pill pill-${getExamWindowStatus(selectedExam)}`}>{getExamWindowStatus(selectedExam)}</span>
+                        <span className="pill">Questions: {selectedExam.questions?.length || 0}</span>
+                        <span className="pill">Duration: {selectedExam.config_json?.duration_minutes || "N/A"}m</span>
+                      </div>
                     </div>
                     <div className="question-stack">
                       {(selectedExam.questions || []).map((question, index) => (
@@ -401,15 +531,22 @@ export default function App() {
                           <p className="question-label">Question {index + 1}</p>
                           <h4>{question.text}</h4>
                           <p className="muted">Type: {question.type} • Marks: {question.marks}</p>
-                          <textarea rows={3} value={draftAnswers[question.id] || ""} onChange={(e) => setDraftAnswers((p) => ({ ...p, [question.id]: e.target.value }))} placeholder="Write your answer here..." />
+                          {question.type === "mcq" || question.type === "true_false" ? (
+                            <input value={draftAnswers[question.id] || ""} onChange={(e) => setDraftAnswers((p) => ({ ...p, [question.id]: e.target.value }))} placeholder={question.type === "true_false" ? "Enter True or False" : "Enter selected option"} />
+                          ) : (
+                            <textarea rows={question.type === "coding" ? 7 : 3} value={draftAnswers[question.id] || ""} onChange={(e) => setDraftAnswers((p) => ({ ...p, [question.id]: e.target.value }))} placeholder={question.type === "coding" ? "Write your code or SQL answer here..." : "Write your answer here..."} />
+                          )}
                         </div>
                       ))}
                     </div>
                     <div className="action-row">
-                      <button className="outline-button" onClick={() => handleStartSubmission(selectedExam)} disabled={loading}>Start</button>
-                      <button className="outline-button" onClick={() => handleSaveDraft(selectedExam)} disabled={loading}>Save Draft</button>
-                      <button className="primary-button" onClick={() => handleSubmitExam(selectedExam)} disabled={loading}>Final Submit</button>
+                      <button className="outline-button" onClick={() => handleStartSubmission(selectedExam)} disabled={loading || getExamWindowStatus(selectedExam) !== "active"}>Start</button>
+                      <button className="outline-button" onClick={() => handleSaveDraft(selectedExam)} disabled={loading || getExamWindowStatus(selectedExam) !== "active"}>Save Draft</button>
+                      <button className="primary-button" onClick={() => handleSubmitExam(selectedExam)} disabled={loading || getExamWindowStatus(selectedExam) !== "active"}>Final Submit</button>
                     </div>
+                    {getExamWindowStatus(selectedExam) !== "active" ? (
+                      <p className="muted">This exam can only be started during its active time window.</p>
+                    ) : null}
                   </div>
 
                   <div className="card side-card">
@@ -423,7 +560,7 @@ export default function App() {
                     ) : <p className="muted">No submission started yet for this exam.</p>}
                   </div>
                 </>
-              ) : <p className="muted">No exam selected yet.</p>}
+              ) : <p className="muted">No assigned exam selected yet.</p>}
             </div>
           ) : null}
 

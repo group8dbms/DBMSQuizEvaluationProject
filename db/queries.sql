@@ -22,6 +22,17 @@ from questions q
 where q.exam_id = 1
 order by q.id;
 
+-- Show student assignments for each exam
+select
+  ea.id as assignment_id,
+  e.title as exam_title,
+  u.email as student_email,
+  ea.assigned_at
+from exam_assignments ea
+join exams e on e.id = ea.exam_id
+join users u on u.id = ea.student_id
+order by ea.assigned_at desc;
+
 -- Show submissions with exam and student details
 select
   s.id as submission_id,

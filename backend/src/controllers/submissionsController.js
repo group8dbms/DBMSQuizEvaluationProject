@@ -5,7 +5,7 @@ const {
   getSubmissionById,
   getSubmissionByStudentAndExam
 } = require("../services/submissionsService");
-const { getExamById, isExamActive } = require("../services/examsService");
+const { getExamById, isExamActive, findExamAssignment } = require("../services/examsService");
 const {
   handleServerError,
   badRequest,
@@ -27,6 +27,15 @@ async function postSubmissionStart(req, res) {
 
     if (!isExamActive(examResult.data)) {
       return forbidden(res, "This exam is not currently active.");
+    }
+
+    const assignmentResult = await findExamAssignment(exam_id, req.user.id);
+    if (assignmentResult.error) {
+      throw assignmentResult.error;
+    }
+
+    if (!assignmentResult.data) {
+      return forbidden(res, "You are not assigned to this exam.");
     }
 
     const existingResult = await getSubmissionByStudentAndExam(req.user.id, exam_id);

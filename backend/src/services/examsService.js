@@ -7,6 +7,14 @@ async function listExams() {
     .order("id", { ascending: true });
 }
 
+async function listAssignedExamsForStudent(studentId) {
+  return supabase
+    .from("exam_assignments")
+    .select("id, assigned_at, exams(*, questions(*))")
+    .eq("student_id", studentId)
+    .order("assigned_at", { ascending: false });
+}
+
 async function getExamById(id) {
   return supabase
     .from("exams")
@@ -23,6 +31,27 @@ async function createQuestion(payload) {
   return supabase.from("questions").insert(payload).select().single();
 }
 
+async function createExamAssignment(payload) {
+  return supabase.from("exam_assignments").insert(payload).select().single();
+}
+
+async function listExamAssignments(examId) {
+  return supabase
+    .from("exam_assignments")
+    .select("*, users!exam_assignments_student_id_fkey(id, email, role)")
+    .eq("exam_id", examId)
+    .order("assigned_at", { ascending: false });
+}
+
+async function findExamAssignment(examId, studentId) {
+  return supabase
+    .from("exam_assignments")
+    .select("*")
+    .eq("exam_id", examId)
+    .eq("student_id", studentId)
+    .maybeSingle();
+}
+
 function isExamActive(exam) {
   const now = new Date();
   const startTime = new Date(exam.start_time);
@@ -33,8 +62,12 @@ function isExamActive(exam) {
 
 module.exports = {
   listExams,
+  listAssignedExamsForStudent,
   getExamById,
   createExam,
   createQuestion,
+  createExamAssignment,
+  listExamAssignments,
+  findExamAssignment,
   isExamActive
 };

@@ -1,10 +1,14 @@
 const { authClient } = require("../db/supabase");
+const { frontendUrl } = require("../config/env");
 const { upsertUserProfile, findUserByAuthUserId } = require("./usersService");
 
 async function signUpWithEmail({ email, password, role }) {
   const { data, error } = await authClient.auth.signUp({
     email,
-    password
+    password,
+    options: {
+      emailRedirectTo: `${frontendUrl}/?verified=1`
+    }
   });
 
   if (error) {
