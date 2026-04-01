@@ -9,6 +9,7 @@ const integrityLogsRoutes = require("./routes/integrityLogsRoutes");
 const casesRoutes = require("./routes/casesRoutes");
 const resultsRoutes = require("./routes/resultsRoutes");
 const auditLogsRoutes = require("./routes/auditLogsRoutes");
+const artifactsRoutes = require("./routes/artifactsRoutes");
 const { attachUser } = require("./middleware/attachUser");
 
 const app = express();
@@ -26,6 +27,7 @@ app.use("/api/integrity-logs", integrityLogsRoutes);
 app.use("/api/cases", casesRoutes);
 app.use("/api/results", resultsRoutes);
 app.use("/api/audit-logs", auditLogsRoutes);
+app.use("/api/artifacts", artifactsRoutes);
 
 app.get("/", (_req, res) => {
   res.json({
@@ -40,7 +42,8 @@ app.get("/", (_req, res) => {
       "/api/integrity-logs",
       "/api/cases",
       "/api/results",
-      "/api/audit-logs"
+      "/api/audit-logs",
+      "/api/artifacts"
     ]
   });
 });

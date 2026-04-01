@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: dbmsquiz-backend
+    env: docker
+    rootDir: backend
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 4000
