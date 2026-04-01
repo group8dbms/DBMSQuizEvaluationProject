@@ -46,6 +46,13 @@ export async function signup(payload) {
   });
 }
 
+export async function accessUser(payload) {
+  return request("/api/auth/access", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function getCurrentUser(token) {
   return request("/api/auth/me", { token });
 }
@@ -56,6 +63,14 @@ export async function getExams(token) {
 
 export async function getUsers(token, emails = [], role = "") {
   return request(`/api/users${buildUserQuery(emails, role)}`, { token });
+}
+
+export async function createUser(token, payload) {
+  return request("/api/users", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function createExam(token, payload) {
@@ -199,6 +214,10 @@ export async function updateRecheckRequest(token, requestId, payload) {
 
 export async function getAuditLogs(token) {
   return request("/api/audit-logs", { token });
+}
+
+export async function getArtifacts(token) {
+  return request("/api/artifacts", { token });
 }
 
 export { API_BASE_URL };

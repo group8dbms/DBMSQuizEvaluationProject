@@ -1,12 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   addCaseEvidence,
   assignExam,
   createExam,
   createIntegrityLog,
   createQuestion,
+  createUser,
   evaluateSubmission,
   getAuditLogs,
+  getArtifacts,
   getCaseEvidence,
   getCases,
   getExamAssignments,
@@ -36,11 +38,15 @@ import {
   initialExamForm,
   initialQuestionForm,
   initialRecheckForm,
+  initialStaffForm,
   panelLabel,
   parseEmails,
   rolePanels,
   roleTitles,
-  suspiciousEventButtons
+  suspiciousEventButtons,
+  validateExamForm,
+  validateQuestionForm,
+  validateStaffForm
 } from "./workspaceState";
 
 export function RoleWorkspace({
@@ -85,7 +91,8 @@ export function RoleWorkspace({
     evaluationForm,
     caseForm,
     evidenceForm,
-    recheckForm
+    recheckForm,
+    staffForm
   } = state;
 
   const {
@@ -112,9 +119,13 @@ export function RoleWorkspace({
     setCaseForm,
     setEvidenceForm,
     setRecheckForm,
+    setStaffForm,
     setFilteredStudents,
     setUnmatchedEmails
   } = setters;
+
+  const [staffRoster, setStaffRoster] = useState([]);
+  const [artifacts, setArtifacts] = useState([]);
 
   useEffect(() => {
     if (!token || !selectedCaseId || !["admin", "proctor", "auditor"].includes(currentUser.role)) {
@@ -129,6 +140,28 @@ export function RoleWorkspace({
         setMessage(error.message);
       });
   }, [token, selectedCaseId, currentUser.role, setCaseEvidence, setMessage]);
+
+  useEffect(() => {
+    if (!token || currentUser.role !== "admin") {
+      setStaffRoster([]);
+      return;
+    }
+
+    getUsers(token)
+      .then(setStaffRoster)
+      .catch((error) => setMessage(error.message));
+  }, [token, currentUser.role, setMessage]);
+
+  useEffect(() => {
+    if (!token || !["admin", "auditor", "evaluator", "proctor"].includes(currentUser.role)) {
+      setArtifacts([]);
+      return;
+    }
+
+    getArtifacts(token)
+      .then(setArtifacts)
+      .catch(() => setArtifacts([]));
+  }, [token, currentUser.role]);
 
   async function refreshExams() {
     const rows = await getExams(token);
@@ -199,6 +232,8 @@ export function RoleWorkspace({
     createExam: async (event) => {
       event.preventDefault();
       await withFeedback(async () => {
+        const validationMessage = validateExamForm(examForm);
+        if (validationMessage) throw new Error(validationMessage);
         const exam = await createExam(token, {
           title: examForm.title,
           start_time: new Date(examForm.start_time).toISOString(),
@@ -217,8 +252,21 @@ export function RoleWorkspace({
       event.preventDefault();
       await withFeedback(async () => {
         const examId = questionForm.examId || selectedExam?.id;
-        if (!examId) throw new Error("Choose an exam before adding a question.");
-        await createQuestion(token, examId, { text: questionForm.text, type: questionForm.type, correct_answer: questionForm.correct_answer, marks: Number(questionForm.marks) });
+        const validationMessage = validateQuestionForm({ ...questionForm, examId });
+        if (validationMessage) throw new Error(validationMessage);
+        if (questionForm.type === "mcq") {
+          const filledOptions = questionForm.options.filter((option) => option.option_text.trim());
+          if (filledOptions.length < 2) throw new Error("MCQ questions need at least two options.");
+          if (filledOptions.filter((option) => option.is_correct).length !== 1) throw new Error("Choose exactly one correct MCQ option.");
+        }
+
+        await createQuestion(token, examId, {
+          text: questionForm.text,
+          type: questionForm.type,
+          correct_answer: questionForm.correct_answer,
+          marks: Number(questionForm.marks),
+          options: questionForm.options
+        });
         await refreshExams();
         setQuestionForm(initialQuestionForm);
         setMessage("Question added to the bank.");
@@ -344,6 +392,17 @@ export function RoleWorkspace({
         setMessage("Re-check workflow updated.");
       });
     },
+    provisionStaff: async (event) => {
+      event.preventDefault();
+      await withFeedback(async () => {
+        const validationMessage = validateStaffForm(staffForm);
+        if (validationMessage) throw new Error(validationMessage);
+        await createUser(token, staffForm);
+        setStaffForm(initialStaffForm);
+        setStaffRoster(await getUsers(token));
+        setMessage("Staff account provisioned successfully.");
+      });
+    },
     refreshAssignments
   };
 
@@ -376,13 +435,14 @@ export function RoleWorkspace({
       {activePanel === "mission" ? <MissionPanel currentUser={currentUser} exams={exams} submissions={submissions} cases={cases} results={results} /> : null}
       {activePanel === "builder" ? <BuilderPanel exams={exams} selectedExam={selectedExam} questionForm={questionForm} examForm={examForm} setExamForm={setExamForm} setQuestionForm={setQuestionForm} onCreateExam={actions.createExam} onCreateQuestion={actions.createQuestion} /> : null}
       {activePanel === "allocation" ? <AllocationPanel exams={exams} assignments={assignments} allocationForm={allocationForm} filteredStudents={filteredStudents} unmatchedEmails={unmatchedEmails} selectedExamId={selectedExamId} setAllocationForm={setAllocationForm} setSelectedExamId={setSelectedExamId} setFilteredStudents={setFilteredStudents} onFilterStudents={actions.filterStudents} onAssignExam={actions.assignExam} onRefreshAssignments={actions.refreshAssignments} /> : null}
+      {activePanel === "users" ? <UsersPanel staffForm={staffForm} setStaffForm={setStaffForm} staffRoster={staffRoster} onProvisionStaff={actions.provisionStaff} /> : null}
       {activePanel === "exam-desk" ? <StudentDeskPanel exams={exams} selectedExam={selectedExam} submissions={submissions} hashChecks={hashChecks} draftAnswers={draftAnswers} setDraftAnswers={setDraftAnswers} loading={loading} onSelectExam={setSelectedExamId} onStartSubmission={actions.startSubmission} onSaveDraft={actions.saveDraft} onSubmitExam={actions.submitExam} onTriggerEvent={actions.triggerEvent} onVerifyHash={actions.verifyHash} /> : null}
       {activePanel === "monitoring" ? <MonitoringPanel integrityFlags={integrityFlags} /> : null}
       {activePanel === "investigation" ? <InvestigationPanel readOnly={currentUser.role === "auditor"} cases={cases} caseEvidence={caseEvidence} selectedCase={selectedCase} caseForm={caseForm} evidenceForm={evidenceForm} setSelectedCaseId={setSelectedCaseId} setCaseForm={setCaseForm} setEvidenceForm={setEvidenceForm} onUpdateCase={actions.updateCase} onAddEvidence={actions.addEvidence} /> : null}
       {activePanel === "evaluation" ? <EvaluationPanel submissions={submissions} selectedSubmission={selectedSubmission} evaluationForm={evaluationForm} recheckRequests={recheckRequests} setSelectedSubmissionId={setSelectedSubmissionId} setEvaluationForm={setEvaluationForm} onEvaluateSubmission={actions.evaluateSubmission} onUpdateRecheck={actions.updateRecheck} /> : null}
       {activePanel === "results" ? <ResultsPanel role={currentUser.role} results={results} recheckForm={recheckForm} setRecheckForm={setRecheckForm} onRequestRecheck={actions.requestRecheck} onPublishResult={actions.publishResult} /> : null}
       {activePanel === "audit" ? <AuditPanel auditLogs={auditLogs} /> : null}
-      {activePanel === "compliance" ? <CompliancePanel integrityFlags={integrityFlags} auditLogs={auditLogs} /> : null}
+      {activePanel === "compliance" ? <CompliancePanel integrityFlags={integrityFlags} auditLogs={auditLogs} artifacts={artifacts} /> : null}
     </section>
   );
 }
@@ -432,7 +492,41 @@ function BuilderPanel({ exams, questionForm, examForm, selectedExam, setExamForm
         <label>Exam<select value={questionForm.examId} onChange={(event) => setQuestionForm((prev) => ({ ...prev, examId: event.target.value }))}><option value="">Select exam</option>{exams.map((exam) => <option key={exam.id} value={exam.id}>{exam.title}</option>)}</select></label>
         <label>Question Text<textarea rows={4} value={questionForm.text} onChange={(event) => setQuestionForm((prev) => ({ ...prev, text: event.target.value }))} /></label>
         <label>Type<select value={questionForm.type} onChange={(event) => setQuestionForm((prev) => ({ ...prev, type: event.target.value }))}><option value="mcq">mcq</option><option value="true_false">true_false</option><option value="short_answer">short_answer</option><option value="long_answer">long_answer</option><option value="coding">coding</option></select></label>
-        <label>Correct Answer / Key<input value={questionForm.correct_answer} onChange={(event) => setQuestionForm((prev) => ({ ...prev, correct_answer: event.target.value }))} /></label>
+        {questionForm.type === "mcq" ? (
+          <div className="selection-card">
+            <p className="eyebrow">MCQ Options</p>
+            <div className="stack">
+              {questionForm.options.map((option, index) => (
+                <div className="option-row" key={index}>
+                  <input
+                    value={option.option_text}
+                    onChange={(event) => setQuestionForm((prev) => ({
+                      ...prev,
+                      correct_answer: prev.options[index].is_correct ? event.target.value : prev.correct_answer,
+                      options: prev.options.map((item, itemIndex) => itemIndex === index ? { ...item, option_text: event.target.value } : item)
+                    }))}
+                    placeholder={`Option ${index + 1}`}
+                  />
+                  <label className="checkbox-row">
+                    <input
+                      type="radio"
+                      name="correctOption"
+                      checked={option.is_correct}
+                      onChange={() => setQuestionForm((prev) => ({
+                        ...prev,
+                        correct_answer: option.option_text,
+                        options: prev.options.map((item, itemIndex) => ({ ...item, is_correct: itemIndex === index }))
+                      }))}
+                    />
+                    <span>Correct</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <label>Correct Answer / Key<input value={questionForm.correct_answer} onChange={(event) => setQuestionForm((prev) => ({ ...prev, correct_answer: event.target.value }))} /></label>
+        )}
         <label>Marks<input type="number" value={questionForm.marks} onChange={(event) => setQuestionForm((prev) => ({ ...prev, marks: event.target.value }))} /></label>
         <button className="outline-button" type="submit">Add Question</button>
       </form>
@@ -451,6 +545,32 @@ function BuilderPanel({ exams, questionForm, examForm, selectedExam, setExamForm
           ))}
           {!exams.length ? <p className="muted">No exams created yet.</p> : null}
           {selectedExam ? <p className="muted">Selected exam: {selectedExam.title}</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UsersPanel({ staffForm, setStaffForm, staffRoster, onProvisionStaff }) {
+  return (
+    <div className="role-grid">
+      <form className="card" onSubmit={onProvisionStaff}>
+        <h3>Provision Staff Account</h3>
+        <label>Email<input type="email" value={staffForm.email} onChange={(event) => setStaffForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="proctor@college.com" /></label>
+        <label>Password<input type="password" value={staffForm.password} onChange={(event) => setStaffForm((prev) => ({ ...prev, password: event.target.value }))} placeholder="Minimum 8 characters" /></label>
+        <label>Role<select value={staffForm.role} onChange={(event) => setStaffForm((prev) => ({ ...prev, role: event.target.value }))}><option value="proctor">proctor</option><option value="evaluator">evaluator</option><option value="auditor">auditor</option><option value="faculty">faculty</option><option value="admin">admin</option></select></label>
+        <button className="primary-button" type="submit">Create Role Account</button>
+      </form>
+
+      <div className="card accent-card">
+        <h3>Role Roster</h3>
+        <div className="stack">
+          {staffRoster.map((user) => (
+            <div className="list-item static" key={user.id}>
+              <span>{user.email}</span>
+              <span>{user.role}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -574,7 +694,21 @@ function StudentDeskPanel({
                     <p className="question-label">Question {index + 1}</p>
                     <h4>{question.text}</h4>
                     <p className="muted">Type: {question.type} | Marks: {question.marks}</p>
-                    {question.type === "coding" || question.type === "long_answer" || question.type === "short_answer" ? (
+                    {question.type === "mcq" ? (
+                      <div className="stack">
+                        {(question.question_options || []).map((option) => (
+                          <label className="checkbox-row" key={option.id}>
+                            <input
+                              type="radio"
+                              name={`question-${question.id}`}
+                              checked={draftAnswers[question.id] === option.option_text}
+                              onChange={() => setDraftAnswers((prev) => ({ ...prev, [question.id]: option.option_text }))}
+                            />
+                            <span>{option.option_text}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : question.type === "coding" || question.type === "long_answer" || question.type === "short_answer" ? (
                       <textarea rows={question.type === "coding" ? 8 : 4} value={draftAnswers[question.id] || ""} onChange={(event) => setDraftAnswers((prev) => ({ ...prev, [question.id]: event.target.value }))} placeholder={question.type === "coding" ? "Write code / SQL answer here..." : "Write your answer here..."} />
                     ) : (
                       <input value={draftAnswers[question.id] || ""} onChange={(event) => setDraftAnswers((prev) => ({ ...prev, [question.id]: event.target.value }))} placeholder={question.type === "true_false" ? "Enter True or False" : "Enter selected option"} />
@@ -843,7 +977,7 @@ function AuditPanel({ auditLogs }) {
   );
 }
 
-function CompliancePanel({ integrityFlags, auditLogs }) {
+function CompliancePanel({ integrityFlags, auditLogs, artifacts }) {
   return (
     <div className="role-grid">
       <div className="card">
@@ -869,6 +1003,19 @@ function CompliancePanel({ integrityFlags, auditLogs }) {
             </div>
           ))}
           {!auditLogs.length ? <p className="muted">No audit entries yet.</p> : null}
+        </div>
+      </div>
+
+      <div className="card full-span">
+        <h3>Stored Reports / Scripts</h3>
+        <div className="stack">
+          {artifacts.map((artifact) => (
+            <div className="list-item static" key={artifact.id}>
+              <span>{artifact.file_name}</span>
+              <span>{artifact.artifact_type}</span>
+            </div>
+          ))}
+          {!artifacts.length ? <p className="muted">No cloud artifact records yet. Upload support is ready once S3 is configured.</p> : null}
         </div>
       </div>
     </div>

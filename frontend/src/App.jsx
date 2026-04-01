@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { API_BASE_URL, getCurrentUser, getExamAssignments, getExams, getAuditLogs, getCases, getIntegrityFlags, getRecheckRequests, getResults, getSubmissions, getUsers, login, signup } from "./api";
+import { API_BASE_URL, accessUser, getCurrentUser, getExamAssignments, getExams, getAuditLogs, getCases, getIntegrityFlags, getRecheckRequests, getResults, getSubmissions, getUsers } from "./api";
 import { GuestAccess } from "./components/GuestAccess";
 import { RoleWorkspace } from "./components/RoleWorkspace";
 import {
@@ -11,13 +11,13 @@ import {
   initialExamForm,
   initialQuestionForm,
   initialRecheckForm,
-  initialSignupForm,
+  initialStaffForm,
   loadStoredSession,
   saveStoredSession,
   clearStoredSession,
   rolePanels,
-  roleTitles,
-  getRoleMessage
+  getRoleMessage,
+  validateAccessForm
 } from "./components/workspaceState";
 
 export default function App() {
@@ -47,7 +47,6 @@ export default function App() {
   const [hashChecks, setHashChecks] = useState({});
 
   const [authForm, setAuthForm] = useState(initialAuthForm);
-  const [signupForm, setSignupForm] = useState(initialSignupForm);
   const [examForm, setExamForm] = useState(initialExamForm);
   const [questionForm, setQuestionForm] = useState(initialQuestionForm);
   const [allocationForm, setAllocationForm] = useState(initialAllocationForm);
@@ -55,6 +54,7 @@ export default function App() {
   const [caseForm, setCaseForm] = useState(initialCaseForm);
   const [evidenceForm, setEvidenceForm] = useState(initialEvidenceForm);
   const [recheckForm, setRecheckForm] = useState(initialRecheckForm);
+  const [staffForm, setStaffForm] = useState(initialStaffForm);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [unmatchedEmails, setUnmatchedEmails] = useState([]);
 
@@ -170,29 +170,19 @@ export default function App() {
     }
   }
 
-  async function handleLogin(event) {
+  async function handleAccess(event) {
     event.preventDefault();
     setLoading(true);
     try {
-      const result = await login(authForm);
+      const validationMessage = validateAccessForm(authForm);
+      if (validationMessage) {
+        throw new Error(validationMessage);
+      }
+      const result = await accessUser(authForm);
       setSession(result.session);
       saveStoredSession(result.session);
       setAuthForm(initialAuthForm);
-      setMessage("Login successful. Loading your role workspace.");
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSignup(event) {
-    event.preventDefault();
-    setLoading(true);
-    try {
-      await signup(signupForm);
-      setSignupForm(initialSignupForm);
-      setMessage("Student signup created. Use the verification email, then sign in from the student desk.");
+      setMessage(result.mode === "signup" ? "Student account created. Verify email if required, then continue." : "Login successful. Loading your role workspace.");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -210,6 +200,7 @@ export default function App() {
     setFilteredStudents([]);
     setUnmatchedEmails([]);
     setAllocationForm(initialAllocationForm);
+    setStaffForm(initialStaffForm);
     setMessage("Session cleared. You are back in guest mode.");
   }
 
@@ -240,12 +231,9 @@ export default function App() {
         {!currentUser ? (
           <GuestAccess
             authForm={authForm}
-            signupForm={signupForm}
             loading={loading}
             onAuthChange={setAuthForm}
-            onSignupChange={setSignupForm}
-            onLogin={handleLogin}
-            onSignup={handleSignup}
+            onAccess={handleAccess}
           />
         ) : (
           <RoleWorkspace
@@ -286,7 +274,8 @@ export default function App() {
               evaluationForm,
               caseForm,
               evidenceForm,
-              recheckForm
+              recheckForm,
+              staffForm
             }}
             setters={{
               setExams,
@@ -312,6 +301,7 @@ export default function App() {
               setCaseForm,
               setEvidenceForm,
               setRecheckForm,
+              setStaffForm,
               setFilteredStudents,
               setUnmatchedEmails
             }}

@@ -1,4 +1,4 @@
-const { supabase } = require("../db/supabase");
+const { supabase, adminAuthClient } = require("../db/supabase");
 
 async function listUsers() {
   return supabase.from("users").select("*").order("id", { ascending: true });
@@ -40,11 +40,21 @@ async function upsertUserProfile(payload) {
     .single();
 }
 
+async function createManagedAuthUser({ email, password, role, emailConfirmed = true }) {
+  return adminAuthClient.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: emailConfirmed,
+    user_metadata: { role }
+  });
+}
+
 module.exports = {
   listUsers,
   listUsersByEmails,
   findUserByAuthUserId,
   findUserByEmail,
   createUser,
-  upsertUserProfile
+  upsertUserProfile,
+  createManagedAuthUser
 };

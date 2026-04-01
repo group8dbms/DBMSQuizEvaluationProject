@@ -4,6 +4,7 @@ const {
   getExamById,
   createExam,
   createQuestion,
+  createQuestionOptions,
   createExamAssignment,
   createExamAssignments,
   listExamAssignments,
@@ -12,6 +13,7 @@ const {
 const { listUsersByEmails } = require("../services/usersService");
 const { handleServerError, badRequest, notFound } = require("../utils/http");
 const { recordAuditLog } = require("../services/auditLogsService");
+const { isNonEmptyString, isPositiveNumber, isValidDateRange, normalizeMcqOptions } = require("../utils/validation");
 
 async function getExams(req, res) {
   try {
@@ -68,6 +70,12 @@ async function postExam(req, res) {
     if (!title || !start_time || !end_time) {
       return badRequest(res, "title, start_time, and end_time are required.");
     }
+    if (!isNonEmptyString(title)) {
+      return badRequest(res, "title cannot be empty.");
+    }
+    if (!isValidDateRange(start_time, end_time)) {
+      return badRequest(res, "Please choose a valid start and end time.");
+    }
 
     const { data, error } = await createExam({
       title,
@@ -99,9 +107,15 @@ async function postExam(req, res) {
 
 async function postQuestion(req, res) {
   try {
-    const { text, type, correct_answer, marks } = req.body;
+    const { text, type, correct_answer, marks, options = [] } = req.body;
     if (!text || !type) {
       return badRequest(res, "text and type are required.");
+    }
+    if (!isNonEmptyString(text)) {
+      return badRequest(res, "text cannot be empty.");
+    }
+    if (marks && !isPositiveNumber(marks)) {
+      return badRequest(res, "marks must be a positive number.");
     }
 
     const examResult = await getExamById(req.params.id);
@@ -109,16 +123,42 @@ async function postQuestion(req, res) {
       return notFound(res, "Exam not found.");
     }
 
+    const normalizedOptions = type === "mcq" ? normalizeMcqOptions(options) : [];
+    const derivedCorrectAnswer = type === "mcq"
+      ? normalizedOptions.find((item) => item.is_correct)?.option_text || null
+      : correct_answer;
+
     const { data, error } = await createQuestion({
       exam_id: Number(req.params.id),
       text,
       type,
-      correct_answer,
+      correct_answer: derivedCorrectAnswer,
       marks
     });
 
     if (error) {
       throw error;
+    }
+
+    if (type === "mcq") {
+      if (normalizedOptions.length < 2) {
+        return badRequest(res, "MCQ questions need at least two options.");
+      }
+      if (normalizedOptions.filter((item) => item.is_correct).length !== 1) {
+        return badRequest(res, "MCQ questions need exactly one correct option.");
+      }
+
+      const optionsResult = await createQuestionOptions(
+        normalizedOptions.map((option) => ({
+          question_id: data.id,
+          option_text: option.option_text,
+          is_correct: option.is_correct
+        }))
+      );
+
+      if (optionsResult.error) {
+        throw optionsResult.error;
+      }
     }
 
     await recordAuditLog({

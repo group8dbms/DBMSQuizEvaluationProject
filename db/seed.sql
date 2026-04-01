@@ -26,6 +26,12 @@ insert into questions (exam_id, text, type, correct_answer, marks) values
   (1, 'Write the SQL command used to fetch data from a table.', 'short_answer', 'SELECT', 3),
   (1, 'Write a SQL query to list all students ordered by name.', 'coding', 'SELECT * FROM students ORDER BY name;', 3);
 
+insert into question_options (question_id, option_text, is_correct) values
+  (1, 'Database Management System', true),
+  (1, 'Data Mining System', false),
+  (1, 'Distributed Memory Store', false),
+  (1, 'Document Mapping Service', false);
+
 insert into exam_assignments (exam_id, student_id, assigned_by) values
   (1, 2, 1),
   (1, 3, 1);
@@ -66,3 +72,9 @@ insert into audit_logs (actor_id, action_type, entity_type, entity_id, metadata)
   (2, 'submission_submitted', 'submission', 1, '{"final_hash": "sample-final-hash-001"}'::jsonb),
   (4, 'case_opened', 'case', 1, '{"submission_id": 1}'::jsonb),
   (5, 'result_published', 'result', 1, '{"submission_id": 1, "total_score": 6}'::jsonb);
+
+insert into stored_artifacts (submission_id, result_id, uploaded_by, artifact_type, provider, object_key, file_name, content_type, public_url) values
+  (1, 1, 5, 'evaluation_report', 's3', 'reports/demo-report.pdf', 'demo-report.pdf', 'application/pdf', 'https://example-bucket.s3.amazonaws.com/reports/demo-report.pdf');
+
+insert into notification_queue (recipient_email, subject, body, status, result_id, sent_at) values
+  ('student1@group8dbms.local', 'Your result is published', 'Your DBMS Midterm Demo result is now available.', 'sent', 1, now());

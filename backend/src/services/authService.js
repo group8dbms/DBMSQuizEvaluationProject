@@ -1,6 +1,6 @@
 const { authClient } = require("../db/supabase");
 const { frontendUrl } = require("../config/env");
-const { upsertUserProfile, findUserByAuthUserId } = require("./usersService");
+const { upsertUserProfile, findUserByAuthUserId, findUserByEmail } = require("./usersService");
 
 async function signUpWithEmail({ email, password, role }) {
   const { data, error } = await authClient.auth.signUp({
@@ -64,4 +64,25 @@ async function signInWithEmail({ email, password }) {
   };
 }
 
-module.exports = { signUpWithEmail, signInWithEmail };
+async function studentAccess({ email, password }) {
+  const loginResult = await signInWithEmail({ email, password });
+  if (!loginResult.error) {
+    return { ...loginResult, mode: "login" };
+  }
+
+  const errorMessage = loginResult.error?.message || "";
+  const profileLookup = await findUserByEmail(email);
+  if (profileLookup.error) {
+    return { data: null, error: profileLookup.error };
+  }
+
+  const canAutoRegister = !profileLookup.data && /invalid login credentials/i.test(errorMessage);
+  if (!canAutoRegister) {
+    return { data: null, error: loginResult.error };
+  }
+
+  const signupResult = await signUpWithEmail({ email, password, role: "student" });
+  return { ...signupResult, mode: "signup" };
+}
+
+module.exports = { signUpWithEmail, signInWithEmail, studentAccess };

@@ -1,15 +1,28 @@
 export const initialAuthForm = { email: "", password: "" };
 export const initialSignupForm = { email: "", password: "", role: "student" };
 export const initialExamForm = { title: "", start_time: "", end_time: "", duration_minutes: 60, tab_switch_limit: 3 };
-export const initialQuestionForm = { examId: "", text: "", type: "short_answer", correct_answer: "", marks: 2 };
+export const initialQuestionForm = {
+  examId: "",
+  text: "",
+  type: "short_answer",
+  correct_answer: "",
+  marks: 2,
+  options: [
+    { option_text: "", is_correct: true },
+    { option_text: "", is_correct: false },
+    { option_text: "", is_correct: false },
+    { option_text: "", is_correct: false }
+  ]
+};
 export const initialAllocationForm = { emailsText: "", selectedStudentIds: [] };
 export const initialEvaluationForm = { total_score: "", feedback: "" };
 export const initialCaseForm = { status: "in_review", verdict: "" };
 export const initialEvidenceForm = { source_type: "manual_note", notes: "" };
 export const initialRecheckForm = { reason: "" };
+export const initialStaffForm = { email: "", password: "", role: "proctor" };
 
 export const rolePanels = {
-  admin: ["mission", "builder", "allocation", "results", "compliance"],
+  admin: ["mission", "builder", "allocation", "users", "results", "compliance"],
   faculty: ["mission", "builder"],
   student: ["mission", "exam-desk", "results"],
   proctor: ["mission", "monitoring", "investigation"],
@@ -59,6 +72,7 @@ export function panelLabel(panel) {
     mission: "Mission",
     builder: "Builder",
     allocation: "Allocation",
+    users: "Users",
     "exam-desk": "Exam Desk",
     monitoring: "Monitoring",
     investigation: "Investigation",
@@ -99,3 +113,36 @@ export const suspiciousEventButtons = [
   { type: "copy_paste", label: "Trigger Copy Attempt", details: { note: "Simulated copy attempt from frontend." } },
   { type: "ip_change", label: "Trigger IP Change", details: { old_ip: "10.0.0.5", new_ip: "10.0.0.9" } }
 ];
+
+function isValidEmail(value) {
+  return typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+export function validateAccessForm({ email, password }) {
+  if (!isValidEmail(email)) return "Enter a valid email address.";
+  if (!password || password.length < 8) return "Password must be at least 8 characters long.";
+  return "";
+}
+
+export function validateExamForm(form) {
+  if (!form.title?.trim()) return "Exam title is required.";
+  if (!form.start_time || !form.end_time) return "Start time and end time are required.";
+  if (new Date(form.end_time) <= new Date(form.start_time)) return "End time must be after start time.";
+  if (Number(form.duration_minutes) <= 0) return "Duration must be greater than zero.";
+  if (Number(form.tab_switch_limit) < 0) return "Tab switch limit cannot be negative.";
+  return "";
+}
+
+export function validateQuestionForm(form) {
+  if (!form.examId) return "Choose an exam first.";
+  if (!form.text?.trim()) return "Question text is required.";
+  if (Number(form.marks) <= 0) return "Marks must be greater than zero.";
+  return "";
+}
+
+export function validateStaffForm(form) {
+  if (!isValidEmail(form.email)) return "Enter a valid staff email address.";
+  if (!form.password || form.password.length < 8) return "Staff password must be at least 8 characters long.";
+  if (!form.role) return "Choose a role.";
+  return "";
+}

@@ -19,4 +19,4 @@ const authClient = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-module.exports = { supabase, authClient };
+module.exports = { supabase, authClient, adminAuthClient: supabase };

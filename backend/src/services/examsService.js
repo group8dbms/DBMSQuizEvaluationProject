@@ -3,14 +3,14 @@ const { supabase } = require("../db/supabase");
 async function listExams() {
   return supabase
     .from("exams")
-    .select("*, questions(*)")
+    .select("*, questions(*, question_options(*))")
     .order("id", { ascending: true });
 }
 
 async function listAssignedExamsForStudent(studentId) {
   return supabase
     .from("exam_assignments")
-    .select("id, assigned_at, exams(*, questions(*))")
+    .select("id, assigned_at, exams(*, questions(*, question_options(*)))")
     .eq("student_id", studentId)
     .order("assigned_at", { ascending: false });
 }
@@ -18,7 +18,7 @@ async function listAssignedExamsForStudent(studentId) {
 async function getExamById(id) {
   return supabase
     .from("exams")
-    .select("*, questions(*)")
+    .select("*, questions(*, question_options(*))")
     .eq("id", id)
     .single();
 }
@@ -29,6 +29,10 @@ async function createExam(payload) {
 
 async function createQuestion(payload) {
   return supabase.from("questions").insert(payload).select().single();
+}
+
+async function createQuestionOptions(payloads) {
+  return supabase.from("question_options").insert(payloads).select();
 }
 
 async function createExamAssignment(payload) {
@@ -70,6 +74,7 @@ module.exports = {
   getExamById,
   createExam,
   createQuestion,
+  createQuestionOptions,
   createExamAssignment,
   createExamAssignments,
   listExamAssignments,

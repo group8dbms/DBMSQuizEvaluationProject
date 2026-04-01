@@ -11,6 +11,7 @@ const {
 } = require("../services/resultsService");
 const { getSubmissionById, updateSubmissionStatus } = require("../services/submissionsService");
 const { recordAuditLog } = require("../services/auditLogsService");
+const { enqueueNotification } = require("../services/notificationQueueService");
 const { handleServerError, badRequest, forbidden, notFound } = require("../utils/http");
 
 async function getResults(req, res) {
@@ -105,6 +106,15 @@ async function patchPublishResult(req, res) {
         submission_id: mutation.data.submission_id
       }
     });
+
+    if (result.data.submissions?.users?.email) {
+      await enqueueNotification({
+        recipient_email: result.data.submissions.users.email,
+        subject: `Result published for ${result.data.submissions.exams?.title || "your exam"}`,
+        body: `Your result is now available. Score: ${mutation.data.total_score}.`,
+        result_id: mutation.data.id
+      });
+    }
 
     return res.json(mutation.data);
   } catch (error) {

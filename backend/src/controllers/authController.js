@@ -1,11 +1,18 @@
-const { signUpWithEmail, signInWithEmail } = require("../services/authService");
+const { signUpWithEmail, signInWithEmail, studentAccess } = require("../services/authService");
 const { handleServerError, badRequest, forbidden } = require("../utils/http");
+const { isStrongPassword, isValidEmail } = require("../utils/validation");
 
 async function postSignUp(req, res) {
   try {
     const { email, password, role = "student" } = req.body;
     if (!email || !password) {
       return badRequest(res, "email and password are required.");
+    }
+    if (!isValidEmail(email)) {
+      return badRequest(res, "Please enter a valid email address.");
+    }
+    if (!isStrongPassword(password)) {
+      return badRequest(res, "Password must be at least 8 characters long.");
     }
 
     const requestedRole = String(role).toLowerCase();
@@ -31,6 +38,9 @@ async function postLogin(req, res) {
     if (!email || !password) {
       return badRequest(res, "email and password are required.");
     }
+    if (!isValidEmail(email)) {
+      return badRequest(res, "Please enter a valid email address.");
+    }
 
     const { data, error } = await signInWithEmail({ email, password });
 
@@ -44,6 +54,33 @@ async function postLogin(req, res) {
   }
 }
 
+async function postStudentAccess(req, res) {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return badRequest(res, "email and password are required.");
+    }
+    if (!isValidEmail(email)) {
+      return badRequest(res, "Please enter a valid email address.");
+    }
+    if (!isStrongPassword(password)) {
+      return badRequest(res, "Password must be at least 8 characters long.");
+    }
+
+    const { data, error, mode } = await studentAccess({ email, password });
+    if (error) {
+      throw error;
+    }
+
+    return res.status(mode === "signup" ? 201 : 200).json({
+      ...data,
+      mode
+    });
+  } catch (error) {
+    return handleServerError(res, error, "Unable to continue with student access.");
+  }
+}
+
 async function getCurrentUser(req, res) {
   return res.json({
     id: req.user.id,
@@ -53,4 +90,4 @@ async function getCurrentUser(req, res) {
   });
 }
 
-module.exports = { postSignUp, postLogin, getCurrentUser };
+module.exports = { postSignUp, postLogin, postStudentAccess, getCurrentUser };
